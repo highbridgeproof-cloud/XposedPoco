@@ -1,5 +1,6 @@
 #include "includes.h"
-
+#include <unistd.h>
+JavaVM* g_jvm = nullptr;
 EGLBoolean (*old_eglSwapBuffers)(...);
 EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     eglQuerySurface(dpy, surface, EGL_WIDTH, &glWidth);
@@ -29,34 +30,98 @@ EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     glViewport(0, 0, (int) io.DisplaySize.x, (int) io.DisplaySize.y);
     ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
 
-    Patches();
+    //Patches();
+    LOGI("Menu step e8");
 
     return old_eglSwapBuffers(dpy, surface);
 }
 
 void *hack_thread(void *) {
-    do {
-        sleep(1);
-        g_il2cppBaseMap = KittyMemory::getElfBaseMap("libil2cpp.so");
-    } while (!g_il2cppBaseMap.isValid());
+    static bool is_initialized = false;
+    if (is_initialized) return nullptr;
+    is_initialized = true;
 
-    do {
-        sleep(1);
-        unityMaps = ElfScanner::createWithPath("libunity.so");
-    } while (!unityMaps.isValid());
+    LOGI("Menu step J1 - C++ Initialization started.");    
+    // ==========================================
+    // ① libil2cpp.so のベースマップ取得
+    // ==========================================
+    // getElfBaseMap ではなく、ElfScanner::findElf() を使ってベースアドレスを取得します
 
-    // input native function
-    RegisterNativeFn nativeInjectEventFn = KittyScanner::findRegisterNativeFn(unityMaps, "nativeInjectEvent");
-
-    if (nativeInjectEventFn.isValid()) {
-        HOOKD_ABS(nativeInjectEventFn.fnPtr, nativeInjectEvent);
+    auto il2cppElf = KittyScanner::ElfScanner::findElf("libil2cpp.so");
+    if (il2cppElf.isValid()) {
+        g_il2cppBaseMap.startAddress = il2cppElf.base();
     } else {
-        LOGE("InjectEventPtr is dead, menu unable to initialize.");
+        // 見つからなかった場合のフォールバック処理
+        g_il2cppBaseMap.startAddress = 0;
+    }
+    
+    if (g_il2cppBaseMap.startAddress != 0) {
+        static bool bnm_loaded = false;
+        if (!bnm_loaded) {
+            LOGI("il2cpp base found at %p. Loading BNM...", (void*)g_il2cppBaseMap.startAddress);
+            
+            JNIEnv *currentEnv = nullptr;
+            // JNI_OnLoad で保存した g_jvm を使用して安全に env を引き出します
+            if (g_jvm != nullptr) {
+                jint res = g_jvm->GetEnv((void**)&currentEnv, JNI_VERSION_1_6);
+                if (res == JNI_EDETACHED) {
+                    g_jvm->AttachCurrentThread(&currentEnv, nullptr);
+                }
+            }
+
+            if (currentEnv != nullptr) {
+                BNM::Loading::TryLoadByJNI(currentEnv);
+                bnm_loaded = true;
+                LOGI("BNM successfully loaded via global JavaVM.");
+            } else {
+                LOGE("Error: Global JNIEnv not found. Could not initialize BNM!");
+            }
+        }
     }
 
+    uintptr_t nativeInjectEventAddr = 0;
+    int retry_count = 0;
+
+    // 【最終解決策】OSのキャッシュ起因によるタイミングのズレを完全に破壊するループ
+    // アドレスが正常に抜けるまで、最大15回（約1.5秒間）粘り強く再検索を繰り返します。
+    while (nativeInjectEventAddr == 0 && retry_count < 15) {
+        auto unityELF = KittyScanner::ElfScanner::findElf("libunity.so");
+        
+        if (unityELF.isValid()) {
+            RegisterNativeFn fnInfo = unityELF.findRegisterNativeFn("nativeInjectEvent", "(Landroid/view/InputEvent;I)Z");
+            if (!fnInfo.isValid())
+                fnInfo = unityELF.findRegisterNativeFn("nativeInjectEvent", "(Landroid/view/InputEvent;)Z");
+            if (!fnInfo.isValid())
+                fnInfo = unityELF.findRegisterNativeFn("nativeInjectEvent", "");
+
+            if (fnInfo.isValid()) {
+                nativeInjectEventAddr = (uintptr_t)fnInfo.fnPtr;
+            } else {
+                nativeInjectEventAddr = unityELF.findSymbol("nativeInjectEvent");
+            }
+        }
+
+        // まだ見つからない場合は、100ミリ秒（0.1秒）だけ待ってから次のループへ進む
+        if (nativeInjectEventAddr == 0) {
+            LOGW("libunity.so address not ready yet (Retry %d/15)... Waiting...", retry_count + 1);
+            usleep(100 * 1000); // 100ms スリープ (unistd.h が必要です)
+            retry_count++;
+        }
+    }
+
+    // ② 最終判定部分
+    if (nativeInjectEventAddr != 0) {
+        LOGI("Found nativeInjectEvent after %d retries! Address: %p", retry_count, (void*)nativeInjectEventAddr);
+        DobbyHook((void*)nativeInjectEventAddr, (dobby_dummy_func_t)nativeInjectEvent, (dobby_dummy_func_t *)&old_nativeInjectEvent);
+    } else {
+        LOGE("InjectEventPtr is dead after 15 retries, menu unable to initialize.");
+        return nullptr;
+    }
+
+
     Pointers();
-    InitPatches();
-    Hooks();
+    //InitPatches();
+    //Hooks();
 
     DobbyHookSM("libEGL.so", "eglSwapBuffers", (void *) hook_eglSwapBuffers, (void **) &old_eglSwapBuffers);
 
@@ -67,13 +132,24 @@ void *hack_thread(void *) {
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     JNIEnv *env;
-    jvm = vm;
+    g_jvm = vm;
     vm->GetEnv((void **) &env, JNI_VERSION_1_6);
 
-    BNM::Loading::TryLoadByJNI(env); // BNM loading, comment this out if you don't use BNM
-
-    UnityPlayer_cls = env->FindClass("com/unity3d/player/UnityPlayer");
-    UnityPlayer_CurrentActivity_fid = env->GetStaticFieldID(UnityPlayer_cls, "currentActivity", "Landroid/app/Activity;");
+    jclass UnityPlayer_cls = env->FindClass("com/unity3d/player/UnityPlayer");
+    if (UnityPlayer_cls != nullptr) {
+        // フィールドの取得を試みる
+        UnityPlayer_CurrentActivity_fid = env->GetStaticFieldID(UnityPlayer_cls, "currentActivity", "Landroid/app/Activity;");
+        
+        // 【最重要】もし難読化等で見つからなかった場合、Java例外をクリアしてクラッシュを防ぐ
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear(); // 安全装置：エラーを消去して処理を続行させる
+            LOGW("Warning: UnityPlayer.currentActivity not found (Obfuscated?).");
+            UnityPlayer_CurrentActivity_fid = nullptr;
+        }
+    } else {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        LOGW("Warning: com/unity3d/player/UnityPlayer class not found.");
+    }      
 
     int ret;
     pthread_t ntid;

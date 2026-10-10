@@ -64,7 +64,8 @@ target_link_libraries(
         ${OPENGL_LIB}
         BNM
         keystone
-        dobby_static
+        dobby
         android
         log
 )
+target_include_directories(BNM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/libraries/Dobby/include)

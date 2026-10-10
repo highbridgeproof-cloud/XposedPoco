@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <queries>
-        <package android:name="com.app.here" /> <!-- Package name of the app you want to inject -->
-    </queries>
 
     <application
         android:label="XposedImGuiMenu"
@@ -15,18 +12,27 @@
         android:supportsRtl="true"
         tools:targetApi="31">
 
+        <!-- 1. Xposedモジュールであることを宣言 (必須) -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
+
+        <!-- 2. モジュールの説明文 (必須) -->
+        <!-- @string/xposed_desc などを設定するか、直接文字列を入れてもOKです -->
         <meta-data
             android:name="xposeddescription"
-            android:value="Library Injection Module for Xposed" />
+            android:value="Xposed ImGui Injection for Unity Games" />
+
+        <!-- 3. 【重要】libxposed API 102 を要求する宣言 -->
+        <!-- 従来の xposedminversion ではなく、新APIのバージョンを指定します -->
+        <meta-data
+            android:name="xposedsharedprefs"
+            android:value="true" /> <!-- 必要に応じて（Prefsを使う場合など） -->
+
+        <!-- LSPosed/libxposed用の最低APIバージョン宣言 -->
         <meta-data
             android:name="xposedminversion"
-            android:value="82" />
-        <meta-data
-            android:name="xposedscope"
-            android:value="com.app.here" /> <!-- Package name of the app you want to inject -->
+            android:value="102" />
 
     </application>
 

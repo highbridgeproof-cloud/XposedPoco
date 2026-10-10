@@ -1,0 +1,4 @@
+export HOME="/workspaces/${GITHUB_REPOSITORY##*/}"
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export ANDROID_HOME=/home/codespace/android-sdk
+export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH

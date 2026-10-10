@@ -1,0 +1,64 @@
+diff --git a/include/BNM/UnityStructures/Matrix4x4.hpp b/include/BNM/UnityStructures/Matrix4x4.hpp
+index 3582db9..14d2aab 100644
+--- a/include/BNM/UnityStructures/Matrix4x4.hpp
++++ b/include/BNM/UnityStructures/Matrix4x4.hpp
+@@ -1,5 +1,5 @@
+ #pragma once
+-
++#include <cmath>
+ #include "Vector2.hpp"
+ #include "Vector3.hpp"
+ #include "Vector4.hpp"
+diff --git a/include/BNM/UserSettings/GlobalSettings.hpp b/include/BNM/UserSettings/GlobalSettings.hpp
+index 97d154b..aef8343 100644
+--- a/include/BNM/UserSettings/GlobalSettings.hpp
++++ b/include/BNM/UserSettings/GlobalSettings.hpp
+@@ -121,9 +121,9 @@ inline void Unhook(PTR_T ptr) {
+ 
+ 
+ // Dobby
+-/*
+-#include <dobby.h>
+ 
++#include <dobby.h>
++/*
+ template<typename PTR_T, typename NEW_T, typename T_OLD>
+ inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
+     if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+@@ -135,13 +135,26 @@ inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
+     if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (void *) newMethod, (void **) &oldBytes);
+     return (void *) ptr;
+ }
++*/
++template<typename PTR_T, typename NEW_T, typename T_OLD>
++inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &oldBytes) {
++    if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (dobby_dummy_func_t) newMethod, (dobby_dummy_func_t *) &oldBytes);
++    return (void *) ptr;
++}
++
++template<typename PTR_T, typename NEW_T, typename T_OLD>
++inline void *BasicHook(PTR_T ptr, NEW_T newMethod, T_OLD &&oldBytes) {
++    if ((void *) ptr != nullptr) DobbyHook((void *)ptr, (dobby_dummy_func_t) newMethod, (dobby_dummy_func_t *) &oldBytes);
++    return (void *) ptr;
++}
++
+ 
+ template<typename PTR_T>
+ inline void Unhook(PTR_T ptr) {
+     if ((void *) ptr != nullptr) DobbyDestroy((void *)ptr);
+ }
+-*/
+ 
++/*
+ // Dummy
+ #include <cassert>
+ 
+@@ -163,7 +176,7 @@ template<typename PTR_T>
+ inline void Unhook(PTR_T ptr) {
+     if ((void *) ptr != nullptr) ((void)0);
+ }
+-
++*/
+ #include <dlfcn.h>
+ 
+ // Если вам нужно скрыть вызовы dlfcn или использовать ваш dl для загрузки BNM в игре извне
