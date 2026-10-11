@@ -1,6 +1,33 @@
 #include "includes.h"
 #include <unistd.h>
+#include <android/log.h>
+#include "poco_runner.hpp"
+#include "poco_server.hpp"
+#include <KittyInclude.hpp>
+#include <BNM/Utils.hpp>
+#include <BNM/Loading.hpp>
+
+#define POCO_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "XposedPoco", __VA_ARGS__)
+#define POCO_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "XposedPoco", __VA_ARGS__)
 JavaVM* g_jvm = nullptr;
+static KittyScanner::ElfScanner g_il2cppElf;
+
+static void* KittyMemoryFinder(const char* name, void* data) {
+    auto* scanner =
+        static_cast<KittyScanner::ElfScanner*>(data);
+
+    if (scanner == nullptr) {
+        return nullptr;
+    }
+
+    return reinterpret_cast<void*>(scanner->findSymbol(name));
+}
+
+static void OnPocoBnmLoaded() {
+    LOGI("XposedPoco: BNM loaded callback fired");
+    InstallPocoMainThreadHook();
+}
+
 EGLBoolean (*old_eglSwapBuffers)(...);
 EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     eglQuerySurface(dpy, surface, EGL_WIDTH, &glWidth);
@@ -31,8 +58,6 @@ EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface) {
     ImGui_ImplOpenGL3_RenderDrawData(GetDrawData());
 
     //Patches();
-    LOGI("Menu step e8");
-
     return old_eglSwapBuffers(dpy, surface);
 }
 
@@ -47,19 +72,36 @@ void *hack_thread(void *) {
     // ==========================================
     // getElfBaseMap ではなく、ElfScanner::findElf() を使ってベースアドレスを取得します
 
-    auto il2cppElf = KittyScanner::ElfScanner::findElf("libil2cpp.so");
+    auto il2cppElf = KittyScanner::ElfScanner{};
+
+    for (int attempt = 0; attempt < 60; ++attempt) {
+        il2cppElf = KittyScanner::ElfScanner::findElf("libil2cpp.so");
+
+        if (il2cppElf.isValid()) {
+            LOGI("XposedPoco: findElf succeeded, attempt=%d", attempt + 1);
+            break;
+        }
+
+        LOGI("XposedPoco: findElf failed, attempt=%d", attempt + 1);
+        sleep(1);
+    }
+
     if (il2cppElf.isValid()) {
         g_il2cppBaseMap.startAddress = il2cppElf.base();
+
+        LOGI(
+            "XposedPoco: il2cpp base=%p",
+            reinterpret_cast<void*>(g_il2cppBaseMap.startAddress)
+        );
     } else {
-        // 見つからなかった場合のフォールバック処理
         g_il2cppBaseMap.startAddress = 0;
-    }
+        LOGI("XposedPoco: libil2cpp.so not found after 60 attempts");
+    }        
     
     if (g_il2cppBaseMap.startAddress != 0) {
         static bool bnm_loaded = false;
         if (!bnm_loaded) {
-            LOGI("il2cpp base found at %p. Loading BNM...", (void*)g_il2cppBaseMap.startAddress);
-            
+            LOGI("il2cpp base found at %p. Loading BNM...", (void*)g_il2cppBaseMap.startAddress);            
             JNIEnv *currentEnv = nullptr;
             // JNI_OnLoad で保存した g_jvm を使用して安全に env を引き出します
             if (g_jvm != nullptr) {
@@ -70,8 +112,71 @@ void *hack_thread(void *) {
             }
 
             if (currentEnv != nullptr) {
-                BNM::Loading::TryLoadByJNI(currentEnv);
-                bnm_loaded = true;
+                POCO_LOGI("hack_thread: reaching BNM initialization");
+                BNM::Loading::AddOnLoadedEvent([]() {
+                    POCO_LOGI("BNM OnLoaded callback fired");
+                    LOGI("XposedPoco:2BNM OnLoaded callback fired");
+                    InstallPocoMainThreadHook();
+                });                
+                
+                LOGI("XposedPoco: preparing custom BNM finder");
+                BNM::Loading::SetMethodFinder(
+                    KittyMemoryFinder,
+                    &g_il2cppElf
+                );
+                BNM::Loading::AllowLateInitHook();
+                LOGI("XposedPoco: waiting for libil2cpp.so");
+                // ロード済みの ELF をスキャナーに設定
+                for (int attempt = 0; attempt < 60; ++attempt) {
+                    g_il2cppElf =
+                        KittyScanner::ElfScanner::findElf("libil2cpp.so");
+                    if (g_il2cppElf.isValid()) {
+                        break;
+                    }
+                    sleep(1);
+                }
+                if (!g_il2cppElf.isValid()) {
+                    LOGI("XposedPoco: createWithPath failed");
+                    return nullptr; // hack_thread が void* を返す場合
+                }
+                g_il2cppBaseMap.startAddress = g_il2cppElf.base();
+                LOGI(
+                    "XposedPoco: ELF found at %p",
+                    reinterpret_cast<void*>(g_il2cppBaseMap.startAddress)
+                );
+                // ロード完了イベントは初期化前に登録
+                BNM::Loading::AddOnLoadedEvent(OnPocoBnmLoaded);
+                LOGI("XposedPoco: calling TryLoadByUsersFinder");
+                const bool loaded =
+                    BNM::Loading::TryLoadByUsersFinder();
+                LOGI(
+                    "XposedPoco: TryLoadByUsersFinder returned=%d",
+                    static_cast<int>(loaded)
+                );
+                for (int attempt = 0; attempt < 30; ++attempt) {
+                    if (BNM::IsLoaded()) {
+                        LOGI("XposedPoco: BNM::IsLoaded is true");
+                        break;
+                    }
+                    LOGI("XposedPoco: waiting for BNM, attempt=%d", attempt + 1);
+                    sleep(1);
+                }
+                if (!BNM::IsLoaded()) {
+                    LOGI("XposedPoco: BNM initialization timed out");
+                }    
+
+                POCO_LOGI(
+                    "TryLoadByJNI returned: %d, BNM::IsLoaded: %d",
+                    static_cast<int>(loaded),
+                    static_cast<int>(BNM::IsLoaded())
+                );
+                if (loaded) {
+                    XposedPoco::StartCommandServer();
+                    bnm_loaded = true;
+                    LOGI("BNM loading hooks installed.");
+                } else {
+                    LOGE("BNM loading setup failed.");
+                }
                 LOGI("BNM successfully loaded via global JavaVM.");
             } else {
                 LOGE("Error: Global JNIEnv not found. Could not initialize BNM!");
@@ -122,9 +227,7 @@ void *hack_thread(void *) {
     Pointers();
     //InitPatches();
     //Hooks();
-
-    DobbyHookSM("libEGL.so", "eglSwapBuffers", (void *) hook_eglSwapBuffers, (void **) &old_eglSwapBuffers);
-
+    //DobbyHookSM("libEGL.so", "eglSwapBuffers", (void *) hook_eglSwapBuffers, (void **) &old_eglSwapBuffers);
     LOGI("Menu finished loading");
 
     return nullptr;

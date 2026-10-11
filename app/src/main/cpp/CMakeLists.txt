@@ -18,6 +18,9 @@ add_library(
         libraries/ImGui/backends/imgui_impl_opengl3.cpp
         libraries/ImGui/backends/imgui_impl_android.cpp
         main.cpp
+        poco_tree.cpp
+        poco_runner.cpp
+        poco_server.cpp
 )
 
 include_directories(
