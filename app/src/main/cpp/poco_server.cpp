@@ -1,7 +1,7 @@
 
 #include "poco_server.hpp"
 #include "include/log.h"
-
+#include <android/log.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>

@@ -164,12 +164,31 @@ std::string GetParentName(Il2CppObject* gameObject) {
 }
 
 std::string GetObjectPath(Il2CppObject* gameObject) {
-    std::string path;
-    Il2CppObject* current = gameObject;
+    if (!IsAlive(gameObject)) {
+        return {};
+    }
 
-    // 親をたどる。循環や異常な階層に備えて上限を設ける
-    for (int depth = 0; depth < 100 && IsAlive(current); ++depth) {
-        const std::string name = GetObjectName(current);
+    auto getTransform = GameObjectClass()
+        .GetMethod("get_transform", 0)
+        .cast<Il2CppObject*>();
+
+    auto getParent = TransformClass()
+        .GetMethod("get_parent", 0)
+        .cast<Il2CppObject*>();
+
+    if (!getTransform.IsValid() || !getParent.IsValid()) {
+        return {};
+    }
+
+    // GameObject から Transform を一度だけ取得する
+    Il2CppObject* currentTransform = getTransform[gameObject]();
+    std::string path;
+
+    for (int depth = 0;
+         depth < 100 && IsAlive(currentTransform);
+         ++depth) {
+
+        const std::string name = GetObjectName(currentTransform);
         if (name.empty()) {
             break;
         }
@@ -180,28 +199,8 @@ std::string GetObjectPath(Il2CppObject* gameObject) {
             path = name + "/" + path;
         }
 
-        auto getTransform = GameObjectClass()
-            .GetMethod("get_transform", 0)
-            .cast<Il2CppObject*>();
-
-        if (!getTransform.IsValid()) {
-            break;
-        }
-
-        Il2CppObject* transform = getTransform[current]();
-        if (!IsAlive(transform)) {
-            break;
-        }
-
-        auto getParent = TransformClass()
-            .GetMethod("get_parent", 0)
-            .cast<Il2CppObject*>();
-
-        if (!getParent.IsValid()) {
-            break;
-        }
-
-        current = getParent[transform]();
+        // 次も Transform として親をたどる
+        currentTransform = getParent[currentTransform]();
     }
 
     return path;
@@ -464,6 +463,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     auto getActiveScene = SceneManagerClass()
         .GetMethod("GetActiveScene", 0)
         .cast<SceneValue>();
+    LOGI("scene1");    
 
     if (!getActiveScene.IsValid()) {
         LOGE("DUMP SceneManager.GetActiveScene unavailable");
@@ -473,10 +473,12 @@ std::string DumpGameObjectTree(const char* rootName) {
     // Scene は IL2CPP の参照型オブジェクトではなく、int handle を持つ値型。
     // BNM から値型として取得し、その構造体のアドレスを instance として渡す。
     SceneValue scene = getActiveScene();
+    LOGI("scene2");  
 
     auto getRoots = SceneClass()
         .GetMethod("GetRootGameObjects", 0)
         .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    LOGI("scene3");      
 
     if (!getRoots.IsValid()) {
         LOGE("DUMP Scene.GetRootGameObjects() unavailable");
@@ -486,6 +488,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     auto* roots = getRoots[
         reinterpret_cast<Il2CppObject*>(&scene)
     ]();
+    LOGI("scene4");   
 
     if (!roots) {
         LOGE("DUMP GetRootGameObjects returned null (scene handle=%d)",
