@@ -281,6 +281,125 @@ bool IsClickable(Il2CppObject* gameObject) {
     return isInteractable[selectable]();
 }
 
+bool GetComponentEnabled(
+    Il2CppObject* component,
+    BNM::Class componentClass
+) {
+    if (!IsAlive(component) || !componentClass) {
+        return false;
+    }
+
+    auto getEnabled = componentClass
+        .GetMethod("get_enabled", 0)
+        .cast<bool>();
+
+    if (!getEnabled.IsValid()) {
+        return false;
+    }
+
+    return getEnabled[component]();
+}
+
+struct ColliderState {
+    bool hasCollider = false;
+    bool colliderEnabled = false;
+    bool hasCollider2D = false;
+    bool collider2DEnabled = false;
+};
+
+ColliderState GetColliderState(Il2CppObject* gameObject) {
+    ColliderState state;
+
+    const auto colliderClass =
+        BNM::Class("UnityEngine", "Collider");
+
+    const auto collider2DClass =
+        BNM::Class("UnityEngine", "Collider2D");
+
+    Il2CppObject* collider =
+        GetComponentByClass(gameObject, colliderClass);
+
+    Il2CppObject* collider2D =
+        GetComponentByClass(gameObject, collider2DClass);
+
+    state.hasCollider = IsAlive(collider);
+    state.colliderEnabled =
+        state.hasCollider &&
+        GetComponentEnabled(collider, colliderClass);
+
+    state.hasCollider2D = IsAlive(collider2D);
+    state.collider2DEnabled =
+        state.hasCollider2D &&
+        GetComponentEnabled(collider2D, collider2DClass);
+
+    return state;
+}
+
+std::string GetComponentTypesJson(Il2CppObject* gameObject) {
+    if (!IsAlive(gameObject)) {
+        return "[]";
+    }
+
+    // GameObject.GetComponents(Type) でアタッチ済みコンポーネントを取得
+    auto getComponents = GameObjectClass()
+        .GetMethod("GetComponents", 1)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+    if (!getComponents.IsValid()) {
+        return "[]";
+    }
+
+    auto componentClass = BNM::Class("UnityEngine", "Component");
+    auto components =
+        getComponents[gameObject](componentClass.GetMonoType());
+
+    if (!components) {
+        return "[]";
+    }
+
+    const auto count =
+        static_cast<std::size_t>(components->GetSize());
+
+    auto data = components->GetData();
+
+    std::string json = "[";
+    bool first = true;
+
+    // JSON の肥大化を防ぐため、1ノードあたり最大32個
+    const auto limit = std::min<std::size_t>(count, 32);
+
+    for (std::size_t i = 0; i < limit; ++i) {
+        Il2CppObject* component = data[i];
+
+        if (!IsAlive(component)) {
+            continue;
+        }
+
+        auto klass = BNM::Class(component).GetClass();
+        if (!klass || !klass->name) {
+            continue;
+        }
+
+        std::string typeName;
+
+        if (klass->namespaze && klass->namespaze[0] != '\0') {
+            typeName = std::string(klass->namespaze) + ".";
+        }
+
+        typeName += klass->name;
+
+        if (!first) {
+            json += ',';
+        }
+
+        first = false;
+        json += "\"" + EscapeJson(typeName) + "\"";
+    }
+
+    json += "]";
+    return json;
+}
+
 bool IsVisible(Il2CppObject* gameObject) {
     if (!IsAlive(gameObject) ||
         !GetActiveInHierarchy(gameObject)) {
@@ -406,6 +525,9 @@ std::string BuildNode(
     const bool active = GetActiveInHierarchy(gameObject);
     const bool visible = IsVisible(gameObject);
     const bool clickable = IsClickable(gameObject);
+    const ColliderState collider = GetColliderState(gameObject);
+    const std::string componentTypes = GetComponentTypesJson(gameObject);
+    
 
     std::string json =
         "{\"name\":\"" + EscapeJson(name) +
@@ -415,7 +537,17 @@ std::string BuildNode(
         "\"visible\":" + (visible ? "true" : "false") +
         ",\"active\":" + (active ? "true" : "false") +
         ",\"clickable\":" + (clickable ? "true" : "false") +
-        "},\"children\":["; 
+        ",\"hasCollider\":" +
+            (collider.hasCollider ? "true" : "false") +
+        ",\"colliderEnabled\":" +
+            (collider.colliderEnabled ? "true" : "false") +
+        ",\"hasCollider2D\":" +
+            (collider.hasCollider2D ? "true" : "false") +
+        ",\"collider2DEnabled\":" +
+            (collider.collider2DEnabled ? "true" : "false") +
+        ",\"componentTypes\":" + componentTypes +
+        "},\"children\":[";
+
 
     if (depth >= kMaxDepth || visited >= kMaxNodes) {
         json += "]}";
