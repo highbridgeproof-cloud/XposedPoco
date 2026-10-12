@@ -23,6 +23,18 @@ using Il2CppObject = BNM::IL2CPP::Il2CppObject;
 using MonoString = BNM::Structures::Mono::String;
 using UnityObject = BNM::UnityEngine::Object;
 
+struct SceneValue {
+    std::int32_t handle;
+};
+
+BNM::Class SceneClass() {
+    return BNM::Class("UnityEngine.SceneManagement", "Scene");
+}
+
+BNM::Class SceneManagerClass() {
+    return BNM::Class("UnityEngine.SceneManagement", "SceneManager");
+}
+
 constexpr std::size_t kMaxNodes = 3000;
 constexpr std::size_t kMaxDepth = 96;
 
@@ -454,41 +466,100 @@ void LogClassMethods(const char *className, BNM::Class klass) {
 
 std::string DumpGameObjectTree(const char* rootName) {
     if (!BNM::IsLoaded()) {
-        return "{\"error\":\"BNM is not loaded\"}";
-    }
-    LogClassMethods("GameObject", BNM::Class("UnityEngine", "GameObject"));
-    LogClassMethods("Object", BNM::Class("UnityEngine", "Object"));
-    LogClassMethods("Component", BNM::Class("UnityEngine", "Component"));
-    LogClassMethods("Resources", BNM::Class("UnityEngine", "Resources"));
-    LogAllGameObjects(); 
-
-    if (!rootName || !*rootName) {
-        return "{\"error\":\"rootName is empty\"}";
+        return "{\\"error\\":\\"BNM is not loaded\\"}";
     }
 
-    Il2CppObject* root = FindGameObject(rootName);
+    LogClassMethods("Scene", SceneClass());
+    LogClassMethods("SceneManager", SceneManagerClass());
 
-    if (!IsAlive(root)) {
-        return "{\"error\":\"root GameObject not found\"}";
+    auto getActiveScene = SceneManagerClass()
+        .GetMethod("GetActiveScene", 0)
+        .cast<SceneValue>();
+
+    if (!getActiveScene.IsValid()) {
+        __android_log_print(
+            ANDROID_LOG_ERROR, "XposedPoco",
+            "DUMP SceneManager.GetActiveScene unavailable");
+        return "{\\"error\\":\\"GetActiveScene unavailable\\"}";
     }
+
+    // Scene は IL2CPP の参照型オブジェクトではなく、int handle を持つ値型。
+    // BNM から値型として取得し、その構造体のアドレスを instance として渡す。
+    SceneValue scene = getActiveScene();
+
+    auto getRoots = SceneClass()
+        .GetMethod("GetRootGameObjects", 0)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+    if (!getRoots.IsValid()) {
+        __android_log_print(
+            ANDROID_LOG_ERROR, "XposedPoco",
+            "DUMP Scene.GetRootGameObjects() unavailable");
+        return "{\\"error\\":\\"GetRootGameObjects unavailable\\"}";
+    }
+
+    auto* roots = getRoots[
+        reinterpret_cast<Il2CppObject*>(&scene)
+    ]();
+
+    if (!roots) {
+        __android_log_print(
+            ANDROID_LOG_ERROR, "XposedPoco",
+            "DUMP GetRootGameObjects returned null (scene handle=%d)",
+            scene.handle);
+        return "{\\"error\\":\\"GetRootGameObjects returned null\\"}";
+    }
+
+    const auto rootCount = static_cast<std::size_t>(roots->GetSize());
+    auto rootData = roots->GetData();
+
     __android_log_print(
-        ANDROID_LOG_INFO,
-        "XposedPoco",
-        "DUMP root=%s ptr=%p",
-        rootName,
-        static_cast<void*>(root)
-    );
-    std::size_t visited = 1;
-    std::string json = BuildNode(root, 0, visited);
+        ANDROID_LOG_INFO, "XposedPoco",
+        "DUMP active scene handle=%d rootCount=%zu requestedRoot=%s",
+        scene.handle,
+        rootCount,
+        (rootName && *rootName) ? rootName : "<all>");
+
+    // Poco には Scene を仮想ルートとして返し、その children に
+    // アクティブシーンの各ルート GameObject のツリーを格納する。
+    std::string json =
+        "{\\"name\\":\\"ActiveScene\\","
+        "\\"payload\\":{\\"name\\":\\"ActiveScene\\","
+        "\\"type\\":\\"Scene\\","
+        "\\"visible\\":true,\\"active\\":true,\\"clickable\\":false},"
+        "\\"children\\":[";
+
+    std::size_t visited = 1; // 仮想 Scene ノード
+    bool first = true;
+
+    for (std::size_t i = 0;
+         i < rootCount && visited < kMaxNodes;
+         ++i) {
+        Il2CppObject* root = rootData[i];
+
+        if (!IsAlive(root)) {
+            continue;
+        }
+
+        if (!first) {
+            json += ',';
+        }
+        first = false;
+
+        ++visited;
+        json += BuildNode(root, 1, visited);
+    }
+
+    json += "]}";
+
     __android_log_print(
-        ANDROID_LOG_INFO,
-        "XposedPoco",
-        "DUMP complete: nodes=%zu bytes=%zu",
+        ANDROID_LOG_INFO, "XposedPoco",
+        "DUMP complete: sceneRoots=%zu nodes=%zu bytes=%zu",
+        rootCount,
         visited,
-        json.size()
-    );
+        json.size());
 
     return json;
-    }
+}
 
 } // namespace XposedPoco
