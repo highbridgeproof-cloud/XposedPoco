@@ -111,6 +111,90 @@ std::string GetObjectName(Il2CppObject* object) {
     return result->str();
 }
 
+
+std::string GetParentName(Il2CppObject* gameObject) {
+    if (!IsAlive(gameObject)) {
+        return {};
+    }
+
+    auto getTransform = GameObjectClass()
+        .GetMethod("get_transform", 0)
+        .cast<Il2CppObject*>();
+
+    if (!getTransform.IsValid()) {
+        return {};
+    }
+
+    Il2CppObject* transform = getTransform[gameObject]();
+
+    if (!IsAlive(transform)) {
+        return {};
+    }
+
+    auto getParent = TransformClass()
+        .GetMethod("get_parent", 0)
+        .cast<Il2CppObject*>();
+
+    if (!getParent.IsValid()) {
+        return {};
+    }
+
+    Il2CppObject* parent = getParent[transform]();
+
+    // 親がない場合はルート GameObject
+    if (!IsAlive(parent)) {
+        return "<root>";
+    }
+
+    // Transform の名前は対応する GameObject の名前と同じ
+    return GetObjectName(parent);
+}
+
+std::string GetObjectPath(Il2CppObject* gameObject) {
+    std::string path;
+    Il2CppObject* current = gameObject;
+
+    // 親をたどる。循環や異常な階層に備えて上限を設ける
+    for (int depth = 0; depth < 100 && IsAlive(current); ++depth) {
+        const std::string name = GetObjectName(current);
+        if (name.empty()) {
+            break;
+        }
+
+        if (path.empty()) {
+            path = name;
+        } else {
+            path = name + "/" + path;
+        }
+
+        auto getTransform = GameObjectClass()
+            .GetMethod("get_transform", 0)
+            .cast<Il2CppObject*>();
+
+        if (!getTransform.IsValid()) {
+            break;
+        }
+
+        Il2CppObject* transform = getTransform[current]();
+        if (!IsAlive(transform)) {
+            break;
+        }
+
+        auto getParent = TransformClass()
+            .GetMethod("get_parent", 0)
+            .cast<Il2CppObject*>();
+
+        if (!getParent.IsValid()) {
+            break;
+        }
+
+        current = getParent[transform]();
+    }
+
+    return path;
+}
+
+
 bool GetActiveInHierarchy(Il2CppObject* gameObject) {
     if (!IsAlive(gameObject)) {
         return false;
@@ -264,10 +348,119 @@ std::string BuildNode(
 
 } // namespace
 
+
+void LogAllGameObjects() {
+    auto objectClass = BNM::Class("UnityEngine", "Object");
+    auto method = objectClass
+        .GetMethod("FindObjectsOfType", 2)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+    if (!method.IsValid()) {
+        __android_log_print(
+            ANDROID_LOG_ERROR, "XposedPoco",
+            "OBJECT_SCAN FindObjectsOfType(Type, bool) unavailable");
+        return;
+    }
+
+    auto result = method(
+        GameObjectClass().GetMonoType(),
+        true
+    );
+
+    if (!result) {
+        __android_log_print(
+            ANDROID_LOG_ERROR, "XposedPoco",
+            "OBJECT_SCAN returned null");
+        return;
+    }
+
+    const auto count = result->GetSize();
+    auto data = result->GetData();
+
+    __android_log_print(
+        ANDROID_LOG_INFO, "XposedPoco",
+        "OBJECT_SCAN count=%zu",
+        static_cast<std::size_t>(count));
+
+    //const auto limit = count < 200 ? count : 200;
+    const auto limit = count;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(limit); ++i) {
+        auto* object = data[i];
+        if (!IsAlive(object)) {
+            continue;
+        }
+
+        const auto name = GetObjectName(object);
+        //const auto parentName = GetParentName(object);
+        const auto path = GetObjectPath(object);
+        __android_log_print(
+            ANDROID_LOG_INFO, "XposedPoco",
+            "OBJECT_SCAN name=%s path=%s ptr=%p",
+            name.c_str(),
+            path.c_str(),
+            static_cast<void*>(object));
+    }
+}
+
+
+void LogClassMethods(const char *className, BNM::Class klass) {
+    if (!klass) {
+        __android_log_print(
+            ANDROID_LOG_INFO, "XposedPoco",
+            "METHOD_SCAN class=%s unavailable", className);
+        return;
+    }
+
+    auto methods = klass.GetMethods(false);
+
+    __android_log_print(
+        ANDROID_LOG_INFO, "XposedPoco",
+        "METHOD_SCAN class=%s count=%zu",
+        className, methods.size());
+
+    for (const auto &method : methods) {
+        auto *info = method.GetInfo();
+        if (!info || !info->name) {
+            continue;
+        }
+
+        std::string returnType = BNM::Class(info->return_type).str();
+        std::string parameters;
+
+        for (unsigned int i = 0; i < info->parameters_count; ++i) {
+            if (i > 0) {
+                parameters += ", ";
+            }
+
+            if (info->parameters && info->parameters[i]) {
+                parameters += BNM::Class(info->parameters[i]).str();
+            } else {
+                parameters += "<unknown>";
+            }
+        }
+
+        __android_log_print(
+            ANDROID_LOG_INFO, "XposedPoco",
+            "METHOD_SCAN %s.%s return=%s params=(%s) argc=%u static=%u",
+            className,
+            info->name,
+            returnType.c_str(),
+            parameters.c_str(),
+            static_cast<unsigned>(info->parameters_count),
+            static_cast<unsigned>(method._isStatic));
+    }
+}
+
+
 std::string DumpGameObjectTree(const char* rootName) {
     if (!BNM::IsLoaded()) {
         return "{\"error\":\"BNM is not loaded\"}";
     }
+    LogClassMethods("GameObject", BNM::Class("UnityEngine", "GameObject"));
+    LogClassMethods("Object", BNM::Class("UnityEngine", "Object"));
+    LogClassMethods("Component", BNM::Class("UnityEngine", "Component"));
+    LogClassMethods("Resources", BNM::Class("UnityEngine", "Resources"));
+    LogAllGameObjects(); 
 
     if (!rootName || !*rootName) {
         return "{\"error\":\"rootName is empty\"}";

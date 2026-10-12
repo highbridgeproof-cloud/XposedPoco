@@ -9,3 +9,6 @@ cd app/build/outputs/apk/debug/
 python3 -m http.server 8080
 
 git commit -m ""
+
+adb logcat -v raw
+adb logcat -v tag
