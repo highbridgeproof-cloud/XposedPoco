@@ -485,10 +485,33 @@ std::string DumpGameObjectTree(const char* rootName) {
         return R"({"error":"GetRootGameObjects unavailable"})";
     }
 
-    auto* roots = getRoots[
-        reinterpret_cast<Il2CppObject*>(&scene)
-    ]();
-    LOGI("scene4");   
+    // Scene は値型なので、BNM の operator[] にスタック上の SceneValue を
+    // Il2CppObject* として渡さない。BNM::Method::Call は instance を
+    // IL2CPP オブジェクトとして検査するため、値型の this ポインタを
+    // methodPointer に直接渡して呼び出す。
+    using RootArray = BNM::Structures::Mono::Array<Il2CppObject*>*;
+    auto* methodInfo = getRoots.GetInfo();
+    if (!methodInfo || !methodInfo->methodPointer) {
+        LOGE("DUMP GetRootGameObjects method pointer unavailable");
+        return R"({"error":"GetRootGameObjects method pointer unavailable"})";
+    }
+
+    LOGI("scene4-before handle=%d scene_ptr=%p method=%p",
+        scene.handle,
+        static_cast<void*>(&scene),
+        reinterpret_cast<void*>(methodInfo->methodPointer));
+
+    RootArray roots = nullptr;
+#if UNITY_VER > 174
+    using GetRootsFn = RootArray (*)(SceneValue*, BNM::IL2CPP::MethodInfo*);
+    auto getRootsFn = reinterpret_cast<GetRootsFn>(methodInfo->methodPointer);
+    roots = getRootsFn(&scene, methodInfo);
+#else
+    using GetRootsFn = RootArray (*)(void*, SceneValue*);
+    auto getRootsFn = reinterpret_cast<GetRootsFn>(methodInfo->methodPointer);
+    roots = getRootsFn(nullptr, &scene);
+#endif
+    LOGI("scene4-after roots=%p", static_cast<void*>(roots));   
 
     if (!roots) {
         LOGE("DUMP GetRootGameObjects returned null (scene handle=%d)",
