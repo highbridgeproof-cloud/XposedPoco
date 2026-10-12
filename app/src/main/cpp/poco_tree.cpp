@@ -466,7 +466,7 @@ void LogClassMethods(const char *className, BNM::Class klass) {
 
 std::string DumpGameObjectTree(const char* rootName) {
     if (!BNM::IsLoaded()) {
-        return "{\\error\\:\\BNM is not loaded\\}";
+        return R"({"error":"BNM is not loaded"})";
     }
 
     LogClassMethods("GameObject", GameObjectClass());
@@ -485,7 +485,7 @@ std::string DumpGameObjectTree(const char* rootName) {
         __android_log_print(
             ANDROID_LOG_ERROR, "XposedPoco",
             "DUMP SceneManager.GetActiveScene unavailable");
-        return "{\\error\\:\\GetActiveScene unavailable\\}";
+        return R"({"error":"GetActiveScene unavailable"})";
     }
 
     // Scene は IL2CPP の参照型オブジェクトではなく、int handle を持つ値型。
@@ -500,7 +500,7 @@ std::string DumpGameObjectTree(const char* rootName) {
         __android_log_print(
             ANDROID_LOG_ERROR, "XposedPoco",
             "DUMP Scene.GetRootGameObjects() unavailable");
-        return "{\\error\\:\\GetRootGameObjects unavailable\\}";
+        return R"({"error":"GetRootGameObjects unavailable"})";
     }
 
     auto* roots = getRoots[
@@ -512,7 +512,7 @@ std::string DumpGameObjectTree(const char* rootName) {
             ANDROID_LOG_ERROR, "XposedPoco",
             "DUMP GetRootGameObjects returned null (scene handle=%d)",
             scene.handle);
-        return "{\\error\\:\\GetRootGameObjects returned null\\}";
+        return R"({"error":"GetRootGameObjects returned null"})";
     }
 
     const auto rootCount = static_cast<std::size_t>(roots->GetSize());
@@ -528,11 +528,8 @@ std::string DumpGameObjectTree(const char* rootName) {
     // Poco には Scene を仮想ルートとして返し、その children に
     // アクティブシーンの各ルート GameObject のツリーを格納する。
     std::string json =
-        "{\\name\\:\\ActiveScene\\,"
-        "\\payload\\:{\\name\\:\\ActiveScene\\,"
-        "\\type\\:\\Scene\\,"
-        "\\visible\\:true,\\active\\:true,\\clickable\\:false},"
-        "\\children\\:[";
+        R"({"name":"ActiveScene","payload":{"name":"ActiveScene","type":"Scene","visible":true,"active":true,"clickable":false},"children":[)";
+
 
     std::size_t visited = 1; // 仮想 Scene ノード
     bool first = true;
