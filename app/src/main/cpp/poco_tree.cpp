@@ -503,7 +503,7 @@ std::string DumpGameObjectTree(const char* rootName) {
 
     RootArray roots = nullptr;
 #if UNITY_VER > 174
-    using GetRootsFn = RootArray (*)(SceneValue*, BNM::IL2CPP::MethodInfo*);
+    using GetRootsFn = RootArray (*)(SceneValue*, const BNM::IL2CPP::MethodInfo*);
     auto getRootsFn = reinterpret_cast<GetRootsFn>(methodInfo->methodPointer);
     roots = getRootsFn(&scene, methodInfo);
 #else
