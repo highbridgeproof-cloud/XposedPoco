@@ -223,6 +223,109 @@ bool GetActiveInHierarchy(Il2CppObject* gameObject) {
     return method[gameObject]();
 }
 
+Il2CppObject* GetComponentByClass(
+    Il2CppObject* gameObject,
+    BNM::Class componentClass
+) {
+    if (!IsAlive(gameObject) || !componentClass) {
+        return nullptr;
+    }
+
+    auto method = GameObjectClass()
+        .GetMethod("GetComponent", 1)
+        .cast<Il2CppObject*>();
+
+    if (!method.IsValid()) {
+        return nullptr;
+    }
+
+    return method[gameObject](componentClass.GetMonoType());
+}
+
+bool IsClickable(Il2CppObject* gameObject) {
+    if (!IsAlive(gameObject) ||
+        !GetActiveInHierarchy(gameObject)) {
+        return false;
+    }
+
+    // Button、Toggle、Slider、InputField などが継承する基底クラス
+    auto selectableClass =
+        BNM::Class("UnityEngine.UI", "Selectable");
+
+    Il2CppObject* selectable =
+        GetComponentByClass(gameObject, selectableClass);
+
+    if (!IsAlive(selectable)) {
+        return false;
+    }
+
+    // Component 自体が有効か確認する
+    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
+        .GetMethod("get_enabled", 0)
+        .cast<bool>();
+
+    if (!getEnabled.IsValid() ||
+        !getEnabled[selectable]()) {
+        return false;
+    }
+
+    // CanvasGroup などによる操作不可状態も可能な範囲で反映
+    auto isInteractable = selectableClass
+        .GetMethod("IsInteractable", 0)
+        .cast<bool>();
+
+    if (!isInteractable.IsValid()) {
+        return false;
+    }
+
+    return isInteractable[selectable]();
+}
+
+bool IsVisible(Il2CppObject* gameObject) {
+    if (!IsAlive(gameObject) ||
+        !GetActiveInHierarchy(gameObject)) {
+        return false;
+    }
+
+    // Unity UI の描画状態を確認
+    auto canvasRendererClass =
+        BNM::Class("UnityEngine", "CanvasRenderer");
+
+    Il2CppObject* canvasRenderer =
+        GetComponentByClass(gameObject, canvasRendererClass);
+
+    if (IsAlive(canvasRenderer)) {
+        auto getCull = canvasRendererClass
+            .GetMethod("get_cull", 0)
+            .cast<bool>();
+
+        if (getCull.IsValid()) {
+            return !getCull[canvasRenderer]();
+        }
+    }
+
+    // 通常の Renderer を持つ GameObject にも対応
+    auto rendererClass =
+        BNM::Class("UnityEngine", "Renderer");
+
+    Il2CppObject* renderer =
+        GetComponentByClass(gameObject, rendererClass);
+
+    if (IsAlive(renderer)) {
+        auto getEnabled = BNM::Class("UnityEngine", "Renderer")
+            .GetMethod("get_enabled", 0)
+            .cast<bool>();
+
+        if (getEnabled.IsValid()) {
+            return getEnabled[renderer]();
+        }
+    }
+
+    // 描画コンポーネントを持たない親オブジェクトなどは、
+    // activeInHierarchy を暫定的な判定として使用する
+    return true;
+}
+
 Il2CppObject* GetTransform(Il2CppObject* gameObject) {
     if (!IsAlive(gameObject)) {
         return nullptr;
@@ -301,16 +404,18 @@ std::string BuildNode(
 
     const std::string name = GetObjectName(gameObject);
     const bool active = GetActiveInHierarchy(gameObject);
+    const bool visible = IsVisible(gameObject);
+    const bool clickable = IsClickable(gameObject);
 
     std::string json =
         "{\"name\":\"" + EscapeJson(name) +
-        "\",\"payload\":{" 
+        "\",\"payload\":{"
         "\"name\":\"" + EscapeJson(name) +
-        "\",\"type\":\"GameObject\"," 
-        "\"visible\":" + (active ? "true" : "false") +
+        "\",\"type\":\"GameObject\","
+        "\"visible\":" + (visible ? "true" : "false") +
         ",\"active\":" + (active ? "true" : "false") +
-        ",\"clickable\":false"
-        "},\"children\":[";   
+        ",\"clickable\":" + (clickable ? "true" : "false") +
+        "},\"children\":["; 
 
     if (depth >= kMaxDepth || visited >= kMaxNodes) {
         json += "]}";
