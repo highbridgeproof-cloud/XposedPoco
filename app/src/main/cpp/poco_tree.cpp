@@ -242,44 +242,74 @@ Il2CppObject* GetComponentByClass(
     return method[gameObject](componentClass.GetMonoType());
 }
 
+
 bool IsClickable(Il2CppObject* gameObject) {
     if (!IsAlive(gameObject) ||
         !GetActiveInHierarchy(gameObject)) {
         return false;
     }
 
-    // Button、Toggle、Slider、InputField などが継承する基底クラス
+    // 1. 既存の Unity UI 判定を維持
     auto selectableClass =
         BNM::Class("UnityEngine.UI", "Selectable");
 
     Il2CppObject* selectable =
         GetComponentByClass(gameObject, selectableClass);
 
-    if (!IsAlive(selectable)) {
+    if (IsAlive(selectable)) {
+        auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
+            .GetMethod("get_enabled", 0)
+            .cast<bool>();
+
+        if (!getEnabled.IsValid() ||
+            !getEnabled[selectable]()) {
+            return false;
+        }
+
+        auto isInteractable = selectableClass
+            .GetMethod("IsInteractable", 0)
+            .cast<bool>();
+
+        if (!isInteractable.IsValid()) {
+            return false;
+        }
+
+        return isInteractable[selectable]();
+    }
+
+    // 2. ワールド内の卵回収対象を判定
+    auto petEggItemClass =
+        BNM::Class("M1PetGame", "PetEggItem");
+
+    Il2CppObject* petEggItem =
+        GetComponentByClass(gameObject, petEggItemClass);
+
+    if (!IsAlive(petEggItem)) {
         return false;
     }
 
-    // Component 自体が有効か確認する
+    // Collider2D が存在し、有効な場合のみ候補にする
+    auto collider2DClass =
+        BNM::Class("UnityEngine", "Collider2D");
+
+    Il2CppObject* collider2D =
+        GetComponentByClass(gameObject, collider2DClass);
+
+    if (!IsAlive(collider2D)) {
+        return false;
+    }
+
     auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
         .GetMethod("get_enabled", 0)
         .cast<bool>();
 
-    if (!getEnabled.IsValid() ||
-        !getEnabled[selectable]()) {
+    if (!getEnabled.IsValid()) {
         return false;
     }
 
-    // CanvasGroup などによる操作不可状態も可能な範囲で反映
-    auto isInteractable = selectableClass
-        .GetMethod("IsInteractable", 0)
-        .cast<bool>();
-
-    if (!isInteractable.IsValid()) {
-        return false;
-    }
-
-    return isInteractable[selectable]();
+    return getEnabled[collider2D]();
 }
+
 
 bool GetComponentEnabled(
     Il2CppObject* component,
