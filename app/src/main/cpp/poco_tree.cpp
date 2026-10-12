@@ -501,16 +501,11 @@ std::string DumpGameObjectTree(const char* rootName) {
         static_cast<void*>(&scene),
         reinterpret_cast<void*>(methodInfo->methodPointer));
 
-    RootArray roots = nullptr;
-#if UNITY_VER > 174
-    using GetRootsFn = RootArray (*)(SceneValue*, const BNM::IL2CPP::MethodInfo*);
+    using GetRootsFn = RootArray (*)(
+        SceneValue*,
+        const BNM::IL2CPP::MethodInfo*);
     auto getRootsFn = reinterpret_cast<GetRootsFn>(methodInfo->methodPointer);
-    roots = getRootsFn(&scene, methodInfo);
-#else
-    using GetRootsFn = RootArray (*)(void*, SceneValue*);
-    auto getRootsFn = reinterpret_cast<GetRootsFn>(methodInfo->methodPointer);
-    roots = getRootsFn(nullptr, &scene);
-#endif
+    RootArray roots = getRootsFn(&scene, methodInfo);
     LOGI("scene4-after roots=%p", static_cast<void*>(roots));   
 
     if (!roots) {
