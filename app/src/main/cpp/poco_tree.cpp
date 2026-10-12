@@ -825,5 +825,75 @@ std::string DumpGameObjectTree(const char* rootName) {
 
     return json;
 }
+std::string DumpClickableObjects() {
+    if (!BNM::IsLoaded()) {
+        return R"({"error":"BNM is not loaded"})";
+    }
 
+    auto objectClass = BNM::Class("UnityEngine", "Object");
+
+    auto findObjects = objectClass
+        .GetMethod("FindObjectsOfType", 2)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+    if (!findObjects.IsValid()) {
+        return R"({"error":"FindObjectsOfType unavailable"})";
+    }
+
+    auto objects = findObjects(
+        GameObjectClass().GetMonoType(),
+        true
+    );
+
+    if (!objects) {
+        return "[]";
+    }
+
+    const auto count =
+        static_cast<std::size_t>(objects->GetSize());
+    auto data = objects->GetData();
+
+    std::string json = "[";
+    bool first = true;
+    std::size_t added = 0;
+
+    for (std::size_t i = 0;
+         i < count && added < kMaxNodes;
+         ++i) {
+
+        Il2CppObject* object = data[i];
+
+        if (!IsAlive(object) || !IsClickable(object)) {
+            continue;
+        }
+
+        const std::string name = GetObjectName(object);
+        const std::string path = GetObjectPath(object);
+
+        if (path.empty()) {
+            continue;
+        }
+
+        if (!first) {
+            json += ',';
+        }
+        first = false;
+
+        json +=
+            "{\"name\":\"" + EscapeJson(name) +
+            "\",\"path\":\"" + EscapeJson(path) +
+            "\",\"active\":true"
+            ",\"visible\":" +
+                std::string(IsVisible(object) ? "true" : "false") +
+            ",\"clickable\":true"
+            ",\"componentTypes\":" +
+                GetComponentTypesJson(object) +
+            "}";
+
+        ++added;
+    }
+
+    json += "]";
+    return json;
+}
 } // namespace XposedPoco

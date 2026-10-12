@@ -35,6 +35,7 @@ std::atomic<bool> g_serverStarted{false};
 std::mutex g_mutex;
 std::condition_variable g_cv;
 DumpState g_state = DumpState::Idle;
+RequestType g_requestType = RequestType::Dump;
 std::string g_result;
 
 // 指定したバイト数をすべて送信する
@@ -112,7 +113,7 @@ void HandleClient(int fd) {
             continue;
         }
 
-        if (command != "DUMP") {
+        if (command != "DUMP" && command != "CLICKABLES") {
             if (!SendFrame(fd, "ERROR: unknown command")) {
                 break;
             }
@@ -130,6 +131,9 @@ void HandleClient(int fd) {
             }
 
             g_result.clear();
+            g_requestType = (command == "CLICKABLES")
+                ? RequestType::Clickables
+                : RequestType::Dump;
             g_state = DumpState::Pending;
         }
 
@@ -241,13 +245,14 @@ void StartCommandServer() {
     std::thread(ServerThread).detach();
 }
 
-bool TryBeginDumpRequest() {
+bool TryBeginRequest(RequestType& type) {
     std::lock_guard<std::mutex> lock(g_mutex);
 
     if (g_state != DumpState::Pending) {
         return false;
     }
 
+    type = g_requestType;
     g_state = DumpState::Processing;
     return true;
 }
