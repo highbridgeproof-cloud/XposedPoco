@@ -469,8 +469,13 @@ std::string DumpGameObjectTree(const char* rootName) {
         return "{\\"error\\":\\"BNM is not loaded\\"}";
     }
 
+    LogClassMethods("GameObject", GameObjectClass());
+    LogClassMethods("Object", ObjectClass());
+    LogClassMethods("Component", BNM::Class("UnityEngine", "Component"));
+    LogClassMethods("Resources", BNM::Class("UnityEngine", "Resources"));
     LogClassMethods("Scene", SceneClass());
     LogClassMethods("SceneManager", SceneManagerClass());
+    LogAllGameObjects();
 
     auto getActiveScene = SceneManagerClass()
         .GetMethod("GetActiveScene", 0)
