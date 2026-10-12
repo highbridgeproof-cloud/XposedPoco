@@ -1,19 +1,17 @@
 #include "poco_runner.hpp"
 #include "poco_tree.hpp"
 #include "poco_server.hpp"
-
+#include "include/log.h"
 #include <BNM/Class.hpp>
 #include <BNM/Method.hpp>
 #include <BNM/MethodBase.hpp>
 #include <BNM/Utils.hpp>
 
-#include <android/log.h>
 #include <atomic>
 #include <string>
 
 namespace {
 
-constexpr char kLogTag[] = "XposedPoco";
 constexpr char kRootName[] = "Canvas";
 
 // Unity IL2CPP のインスタンスメソッド用フック
@@ -57,11 +55,7 @@ void InstallPocoMainThreadHook() {
 
     if (!update.IsValid()) {
         g_hookInstalled.store(false);
-        __android_log_print(
-            ANDROID_LOG_ERROR,
-            kLogTag,
-            "EventSystem.Update was not found."
-        );
+        LOGE("EventSystem.Update was not found.");
         return;
     }
 
@@ -70,17 +64,9 @@ void InstallPocoMainThreadHook() {
             EventSystemUpdateHook,
             g_originalUpdate)) {
         g_hookInstalled.store(false);
-        __android_log_print(
-            ANDROID_LOG_ERROR,
-            kLogTag,
-            "Failed to hook EventSystem.Update."
-        );
+        LOGE("Failed to hook EventSystem.Update.");
         return;
     }
 
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        kLogTag,
-        "EventSystem.Update hook installed."
-    );
+    LOGI("EventSystem.Update hook installed.");
 }

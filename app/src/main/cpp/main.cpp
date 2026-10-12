@@ -1,14 +1,12 @@
 #include "includes.h"
+#include "include/log.h"
 #include <unistd.h>
-#include <android/log.h>
 #include "poco_runner.hpp"
 #include "poco_server.hpp"
 #include <KittyInclude.hpp>
 #include <BNM/Utils.hpp>
 #include <BNM/Loading.hpp>
 
-#define POCO_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "XposedPoco", __VA_ARGS__)
-#define POCO_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "XposedPoco", __VA_ARGS__)
 JavaVM* g_jvm = nullptr;
 static KittyScanner::ElfScanner g_il2cppElf;
 
@@ -24,7 +22,7 @@ static void* KittyMemoryFinder(const char* name, void* data) {
 }
 
 static void OnPocoBnmLoaded() {
-    LOGI("XposedPoco: BNM loaded callback fired");
+    LOGI("BNM loaded callback fired");
     InstallPocoMainThreadHook();
 }
 
@@ -78,11 +76,11 @@ void *hack_thread(void *) {
         il2cppElf = KittyScanner::ElfScanner::findElf("libil2cpp.so");
 
         if (il2cppElf.isValid()) {
-            LOGI("XposedPoco: findElf succeeded, attempt=%d", attempt + 1);
+            LOGI(" findElf succeeded, attempt=%d", attempt + 1);
             break;
         }
 
-        LOGI("XposedPoco: findElf failed, attempt=%d", attempt + 1);
+        LOGI("findElf failed, attempt=%d", attempt + 1);
         sleep(1);
     }
 
@@ -90,12 +88,12 @@ void *hack_thread(void *) {
         g_il2cppBaseMap.startAddress = il2cppElf.base();
 
         LOGI(
-            "XposedPoco: il2cpp base=%p",
+            "il2cpp base=%p",
             reinterpret_cast<void*>(g_il2cppBaseMap.startAddress)
         );
     } else {
         g_il2cppBaseMap.startAddress = 0;
-        LOGI("XposedPoco: libil2cpp.so not found after 60 attempts");
+        LOGI("libil2cpp.so not found after 60 attempts");
     }        
     
     if (g_il2cppBaseMap.startAddress != 0) {
@@ -112,20 +110,19 @@ void *hack_thread(void *) {
             }
 
             if (currentEnv != nullptr) {
-                POCO_LOGI("hack_thread: reaching BNM initialization");
+                LOGI("hack_thread: reaching BNM initialization");
                 BNM::Loading::AddOnLoadedEvent([]() {
-                    POCO_LOGI("BNM OnLoaded callback fired");
-                    LOGI("XposedPoco:2BNM OnLoaded callback fired");
+                    LOGI("BNM OnLoaded callback fired");
                     InstallPocoMainThreadHook();
                 });                
                 
-                LOGI("XposedPoco: preparing custom BNM finder");
+                LOGI("preparing custom BNM finder");
                 BNM::Loading::SetMethodFinder(
                     KittyMemoryFinder,
                     &g_il2cppElf
                 );
                 BNM::Loading::AllowLateInitHook();
-                LOGI("XposedPoco: waiting for libil2cpp.so");
+                LOGI("waiting for libil2cpp.so");
                 // ロード済みの ELF をスキャナーに設定
                 for (int attempt = 0; attempt < 60; ++attempt) {
                     g_il2cppElf =
@@ -136,36 +133,36 @@ void *hack_thread(void *) {
                     sleep(1);
                 }
                 if (!g_il2cppElf.isValid()) {
-                    LOGI("XposedPoco: createWithPath failed");
+                    LOGI("createWithPath failed");
                     return nullptr; // hack_thread が void* を返す場合
                 }
                 g_il2cppBaseMap.startAddress = g_il2cppElf.base();
                 LOGI(
-                    "XposedPoco: ELF found at %p",
+                    "ELF found at %p",
                     reinterpret_cast<void*>(g_il2cppBaseMap.startAddress)
                 );
                 // ロード完了イベントは初期化前に登録
                 BNM::Loading::AddOnLoadedEvent(OnPocoBnmLoaded);
-                LOGI("XposedPoco: calling TryLoadByUsersFinder");
+                LOGI("calling TryLoadByUsersFinder");
                 const bool loaded =
                     BNM::Loading::TryLoadByUsersFinder();
                 LOGI(
-                    "XposedPoco: TryLoadByUsersFinder returned=%d",
+                    "TryLoadByUsersFinder returned=%d",
                     static_cast<int>(loaded)
                 );
                 for (int attempt = 0; attempt < 30; ++attempt) {
                     if (BNM::IsLoaded()) {
-                        LOGI("XposedPoco: BNM::IsLoaded is true");
+                        LOGI("BNM::IsLoaded is true");
                         break;
                     }
-                    LOGI("XposedPoco: waiting for BNM, attempt=%d", attempt + 1);
+                    LOGI("waiting for BNM, attempt=%d", attempt + 1);
                     sleep(1);
                 }
                 if (!BNM::IsLoaded()) {
-                    LOGI("XposedPoco: BNM initialization timed out");
+                    LOGI("BNM initialization timed out");
                 }    
 
-                POCO_LOGI(
+                LOGI(
                     "TryLoadByJNI returned: %d, BNM::IsLoaded: %d",
                     static_cast<int>(loaded),
                     static_cast<int>(BNM::IsLoaded())

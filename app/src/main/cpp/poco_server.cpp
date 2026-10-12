@@ -1,7 +1,6 @@
 
 #include "poco_server.hpp"
-
-#include <android/log.h>
+#include "include/log.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -17,9 +16,6 @@
 #include <string>
 #include <thread>
 #include <chrono>
-
-#define POCO_LOGI(...) \
-    __android_log_print(ANDROID_LOG_INFO, "XposedPoco", __VA_ARGS__)
 
 namespace XposedPoco {
 namespace {
@@ -137,7 +133,7 @@ void HandleClient(int fd) {
             g_state = DumpState::Pending;
         }
 
-        POCO_LOGI("Received DUMP command");
+        LOGI("Received DUMP command");
         g_cv.notify_all();
 
         std::string result;
@@ -178,7 +174,7 @@ void ServerThread() {
     const int serverFd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (serverFd < 0) {
-        POCO_LOGI("socket failed: %s", strerror(errno));
+        LOGI("socket failed: %s", strerror(errno));
         return;
     }
 
@@ -201,18 +197,18 @@ void ServerThread() {
             reinterpret_cast<sockaddr*>(&addr),
             sizeof(addr)
         ) != 0) {
-        POCO_LOGI("bind failed: %s", strerror(errno));
+        LOGI("bind failed: %s", strerror(errno));
         close(serverFd);
         return;
     }
 
     if (listen(serverFd, 4) != 0) {
-        POCO_LOGI("listen failed: %s", strerror(errno));
+        LOGI("listen failed: %s", strerror(errno));
         close(serverFd);
         return;
     }
 
-    POCO_LOGI("TCP command server listening on 127.0.0.1:%u",
+    LOGI("TCP command server listening on 127.0.0.1:%u",
               kPort);
 
     while (true) {
@@ -223,13 +219,13 @@ void ServerThread() {
                 continue;
             }
 
-            POCO_LOGI("accept failed: %s", strerror(errno));
+            LOGI("accept failed: %s", strerror(errno));
             continue;
         }
 
-        POCO_LOGI("PC client connected");
+        LOGI("PC client connected");
         HandleClient(clientFd);
-        POCO_LOGI("PC client disconnected");
+        LOGI("PC client disconnected");
     }
 }
 

@@ -1,4 +1,5 @@
 #include "poco_tree.hpp"
+#include "include/log.h"
 
 #include <string>
 #include <string_view>
@@ -324,10 +325,7 @@ std::string BuildNode(
     }
 
     const int childCount = GetChildCount(transform);
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        "XposedPoco",
-        "TREE node='%s' depth=%zu children=%d active=%s",
+    LOGI("TREE node='%s' depth=%zu children=%d active=%s",
         name.c_str(),
         depth,
         childCount,
@@ -368,9 +366,7 @@ void LogAllGameObjects() {
         .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
 
     if (!method.IsValid()) {
-        __android_log_print(
-            ANDROID_LOG_ERROR, "XposedPoco",
-            "OBJECT_SCAN FindObjectsOfType(Type, bool) unavailable");
+        LOGE("OBJECT_SCAN FindObjectsOfType(Type, bool) unavailable");
         return;
     }
 
@@ -380,18 +376,14 @@ void LogAllGameObjects() {
     );
 
     if (!result) {
-        __android_log_print(
-            ANDROID_LOG_ERROR, "XposedPoco",
-            "OBJECT_SCAN returned null");
+        LOGE("OBJECT_SCAN returned null");
         return;
     }
 
     const auto count = result->GetSize();
     auto data = result->GetData();
 
-    __android_log_print(
-        ANDROID_LOG_INFO, "XposedPoco",
-        "OBJECT_SCAN count=%zu",
+    LOGI("OBJECT_SCAN count=%zu",
         static_cast<std::size_t>(count));
 
     //const auto limit = count < 200 ? count : 200;
@@ -405,9 +397,7 @@ void LogAllGameObjects() {
         const auto name = GetObjectName(object);
         //const auto parentName = GetParentName(object);
         const auto path = GetObjectPath(object);
-        __android_log_print(
-            ANDROID_LOG_INFO, "XposedPoco",
-            "OBJECT_SCAN name=%s path=%s ptr=%p",
+        LOGI("OBJECT_SCAN name=%s path=%s ptr=%p",
             name.c_str(),
             path.c_str(),
             static_cast<void*>(object));
@@ -417,17 +407,13 @@ void LogAllGameObjects() {
 
 void LogClassMethods(const char *className, BNM::Class klass) {
     if (!klass) {
-        __android_log_print(
-            ANDROID_LOG_INFO, "XposedPoco",
-            "METHOD_SCAN class=%s unavailable", className);
+        LOGI("METHOD_SCAN class=%s unavailable", className);
         return;
     }
 
     auto methods = klass.GetMethods(false);
 
-    __android_log_print(
-        ANDROID_LOG_INFO, "XposedPoco",
-        "METHOD_SCAN class=%s count=%zu",
+    LOGI("METHOD_SCAN class=%s count=%zu",
         className, methods.size());
 
     for (const auto &method : methods) {
@@ -451,9 +437,7 @@ void LogClassMethods(const char *className, BNM::Class klass) {
             }
         }
 
-        __android_log_print(
-            ANDROID_LOG_INFO, "XposedPoco",
-            "METHOD_SCAN %s.%s return=%s params=(%s) argc=%u static=%u",
+        LOGI("METHOD_SCAN %s.%s return=%s params=(%s) argc=%u static=%u",
             className,
             info->name,
             returnType.c_str(),
@@ -482,9 +466,7 @@ std::string DumpGameObjectTree(const char* rootName) {
         .cast<SceneValue>();
 
     if (!getActiveScene.IsValid()) {
-        __android_log_print(
-            ANDROID_LOG_ERROR, "XposedPoco",
-            "DUMP SceneManager.GetActiveScene unavailable");
+        LOGE("DUMP SceneManager.GetActiveScene unavailable");
         return R"({"error":"GetActiveScene unavailable"})";
     }
 
@@ -497,9 +479,7 @@ std::string DumpGameObjectTree(const char* rootName) {
         .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
 
     if (!getRoots.IsValid()) {
-        __android_log_print(
-            ANDROID_LOG_ERROR, "XposedPoco",
-            "DUMP Scene.GetRootGameObjects() unavailable");
+        LOGE("DUMP Scene.GetRootGameObjects() unavailable");
         return R"({"error":"GetRootGameObjects unavailable"})";
     }
 
@@ -508,9 +488,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     ]();
 
     if (!roots) {
-        __android_log_print(
-            ANDROID_LOG_ERROR, "XposedPoco",
-            "DUMP GetRootGameObjects returned null (scene handle=%d)",
+        LOGE("DUMP GetRootGameObjects returned null (scene handle=%d)",
             scene.handle);
         return R"({"error":"GetRootGameObjects returned null"})";
     }
@@ -518,9 +496,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     const auto rootCount = static_cast<std::size_t>(roots->GetSize());
     auto rootData = roots->GetData();
 
-    __android_log_print(
-        ANDROID_LOG_INFO, "XposedPoco",
-        "DUMP active scene handle=%d rootCount=%zu requestedRoot=%s",
+    LOGI("DUMP active scene handle=%d rootCount=%zu requestedRoot=%s",
         scene.handle,
         rootCount,
         (rootName && *rootName) ? rootName : "<all>");
@@ -554,9 +530,7 @@ std::string DumpGameObjectTree(const char* rootName) {
 
     json += "]}";
 
-    __android_log_print(
-        ANDROID_LOG_INFO, "XposedPoco",
-        "DUMP complete: sceneRoots=%zu nodes=%zu bytes=%zu",
+    LOGI("DUMP complete: sceneRoots=%zu nodes=%zu bytes=%zu",
         rootCount,
         visited,
         json.size());
