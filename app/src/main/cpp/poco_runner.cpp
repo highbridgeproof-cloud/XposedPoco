@@ -34,12 +34,15 @@ void EventSystemUpdateHook(Il2CppObject* instance, MethodInfo* method) {
 
     // PC から DUMP 要求が来たフレームだけツリーを取得する
     XposedPoco::RequestType requestType;
+    std::string target;
 
-    if (XposedPoco::TryBeginRequest(requestType)) {
+    if (XposedPoco::TryBeginRequest(requestType, target)) {
         std::string json;
 
         if (requestType == XposedPoco::RequestType::Clickables) {
             json = XposedPoco::DumpClickableObjects();
+        } else if (requestType == XposedPoco::RequestType::Click) {
+            json = XposedPoco::ClickGameObject(target);
         } else {
             json = XposedPoco::DumpGameObjectTree("Canvas");
         }
