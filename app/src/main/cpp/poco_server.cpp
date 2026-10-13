@@ -21,7 +21,7 @@ namespace XposedPoco {
 namespace {
 
 constexpr uint16_t kPort = 27183;
-constexpr size_t kMaxCommandLength = 64;
+constexpr size_t kMaxCommandLength = 512;
 
 enum class DumpState {
     Idle,
@@ -36,6 +36,7 @@ std::mutex g_mutex;
 std::condition_variable g_cv;
 DumpState g_state = DumpState::Idle;
 RequestType g_requestType = RequestType::Dump;
+std::string g_requestTarget;
 std::string g_result;
 
 // 指定したバイト数をすべて送信する
@@ -113,7 +114,23 @@ void HandleClient(int fd) {
             continue;
         }
 
-        if (command != "DUMP" && command != "CLICKABLES") {
+        RequestType requestType = RequestType::Dump;
+        std::string target;
+
+        if (command == "DUMP") {
+            requestType = RequestType::Dump;
+        } else if (command == "CLICKABLES") {
+            requestType = RequestType::Clickables;
+        } else if (command.rfind("CLICK ", 0) == 0) {
+            requestType = RequestType::Click;
+            target = command.substr(6);
+            if (target.empty()) {
+                if (!SendFrame(fd, R"({"ok":false,"error":"CLICK requires a name or path"})")) {
+                    break;
+                }
+                continue;
+            }
+        } else {
             if (!SendFrame(fd, "ERROR: unknown command")) {
                 break;
             }
@@ -131,13 +148,12 @@ void HandleClient(int fd) {
             }
 
             g_result.clear();
-            g_requestType = (command == "CLICKABLES")
-                ? RequestType::Clickables
-                : RequestType::Dump;
+            g_requestType = requestType;
+            g_requestTarget = std::move(target);
             g_state = DumpState::Pending;
         }
 
-        LOGI("Received DUMP command");
+        LOGI("Received command: %s", command.c_str());
         g_cv.notify_all();
 
         std::string result;
@@ -245,7 +261,7 @@ void StartCommandServer() {
     std::thread(ServerThread).detach();
 }
 
-bool TryBeginRequest(RequestType& type) {
+bool TryBeginRequest(RequestType& type, std::string& target) {
     std::lock_guard<std::mutex> lock(g_mutex);
 
     if (g_state != DumpState::Pending) {
@@ -253,6 +269,8 @@ bool TryBeginRequest(RequestType& type) {
     }
 
     type = g_requestType;
+    target = g_requestTarget;
+    g_requestTarget.clear();
     g_state = DumpState::Processing;
     return true;
 }
