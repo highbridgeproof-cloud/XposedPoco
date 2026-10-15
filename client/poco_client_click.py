@@ -31,7 +31,7 @@ def save_json(filename, data):
 def main():
     with socket.create_connection((HOST, PORT), timeout=10) as sock:
         sock.settimeout(40)
-        print("Commands: DUMP, CLICKABLES, CLICK <name-or-path>, PING, EXIT")
+        print("Commands: DUMP, CLICKABLES, CLICK <name-or-path>, CLICK_COMPONENT <type> <name-or-path>, PING, EXIT")
         while True:
             raw = input("> ").strip()
             if not raw:
@@ -41,6 +41,14 @@ def main():
             upper = raw.upper()
             if upper in ("DUMP", "CLICKABLES", "PING"):
                 command = upper
+            elif upper.startswith("CLICK_COMPONENT "):
+                args = raw[len("CLICK_COMPONENT "):].strip()
+                parts = args.split(maxsplit=1)
+                if len(parts) != 2 or not parts[0] or not parts[1]:
+                    print("Usage: CLICK_COMPONENT <componentType> <exact name or full path>")
+                    continue
+                component_type, target = parts
+                command = "CLICK_COMPONENT " + component_type + " " + target
             elif upper.startswith("CLICK "):
                 target = raw[6:].strip()
                 if not target:
