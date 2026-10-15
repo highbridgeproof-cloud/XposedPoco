@@ -971,4 +971,129 @@ std::string ClickGameObject(const std::string& target) {
     return errorJson("Matched object type does not have a supported click handler");
 }
 
+
+std::string ClickComponent(
+    const std::string& componentType,
+    const std::string& target
+) {
+    auto errorJson = [](const std::string& message) {
+        return std::string("{\"ok\":false,\"error\":\"") +
+            EscapeJson(message) + "\"}";
+    };
+
+    if (!BNM::IsLoaded()) return errorJson("BNM is not loaded");
+    if (componentType.empty())
+        return errorJson("CLICK_COMPONENT requires a component type");
+    if (target.empty())
+        return errorJson("CLICK_COMPONENT requires a name or path");
+
+    BNM::Class componentClass;
+    if (componentType == "Button") {
+        componentClass = BNM::Class("UnityEngine.UI", "Button");
+    } else if (componentType == "ToggleEX") {
+        componentClass = BNM::Class("", "ToggleEX");
+    } else if (componentType == "Toggle") {
+        componentClass = BNM::Class("UnityEngine.UI", "Toggle");
+    } else {
+        return errorJson("Unsupported component type: " + componentType);
+    }
+
+    if (!componentClass)
+        return errorJson("Component class not found: " + componentType);
+
+    // 型指定でコンポーネントを検索し、対象名/パスでさらに絞り込む。
+    auto findObjects = ObjectClass().GetMethod("FindObjectsOfType", 2)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    if (!findObjects.IsValid())
+        return errorJson("FindObjectsOfType(Type, bool) unavailable");
+
+    auto components = findObjects(componentClass.GetMonoType(), true);
+    if (!components)
+        return errorJson("FindObjectsOfType returned null");
+
+    auto getGameObject = BNM::Class("UnityEngine", "Component")
+        .GetMethod("get_gameObject", 0)
+        .cast<Il2CppObject*>();
+    if (!getGameObject.IsValid())
+        return errorJson("Component.get_gameObject() unavailable");
+
+    Il2CppObject* matchedComponent = nullptr;
+    Il2CppObject* matchedGameObject = nullptr;
+    std::string matchedName;
+    std::string matchedPath;
+    std::size_t matches = 0;
+    const auto count = static_cast<std::size_t>(components->GetSize());
+    auto data = components->GetData();
+
+    for (std::size_t i = 0; i < count; ++i) {
+        Il2CppObject* component = data[i];
+        if (!IsAlive(component)) continue;
+
+        Il2CppObject* gameObject = getGameObject[component]();
+        if (!IsAlive(gameObject)) continue;
+
+        const std::string name = GetObjectName(gameObject);
+        const std::string path = GetObjectPath(gameObject);
+        if (target != name && target != path) continue;
+
+        ++matches;
+        matchedComponent = component;
+        matchedGameObject = gameObject;
+        matchedName = name;
+        matchedPath = path;
+    }
+
+    if (matches == 0 || !matchedComponent || !matchedGameObject)
+        return errorJson("No component matched the supplied type and name/path");
+    if (matches > 1)
+        return errorJson("Target is ambiguous; use the full GameObject path");
+    if (!GetActiveInHierarchy(matchedGameObject))
+        return errorJson("Target GameObject is not active in hierarchy");
+    if (!IsClickable(matchedGameObject))
+        return errorJson("Target is not currently clickable");
+
+    if (componentType == "Button") {
+        auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
+        auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
+            .GetMethod("IsInteractable", 0).cast<bool>();
+        if (!isInteractable.IsValid() || !isInteractable[matchedComponent]())
+            return errorJson("Button is not interactable");
+
+        auto getOnClick = buttonClass.GetMethod("get_onClick", 0)
+            .cast<Il2CppObject*>();
+        if (!getOnClick.IsValid())
+            return errorJson("Button.get_onClick() unavailable");
+        Il2CppObject* unityEvent = getOnClick[matchedComponent]();
+        if (!IsAlive(unityEvent))
+            return errorJson("Button.onClick is null");
+
+        auto invoke = BNM::Class("UnityEngine.Events", "UnityEvent")
+            .GetMethod("Invoke", 0).cast<void>();
+        if (!invoke.IsValid())
+            return errorJson("UnityEvent.Invoke() unavailable");
+        invoke[unityEvent]();
+    } else {
+        // ToggleEX は UnityEngine.UI.Toggle の派生クラス。
+        // isOn setter を使い、ToggleGroup と onValueChanged の通常経路を通す。
+        auto toggleClass = BNM::Class("UnityEngine.UI", "Toggle");
+        auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
+            .GetMethod("IsInteractable", 0).cast<bool>();
+        if (!isInteractable.IsValid() || !isInteractable[matchedComponent]())
+            return errorJson("Toggle is not interactable");
+
+        auto getIsOn = toggleClass.GetMethod("get_isOn", 0).cast<bool>();
+        auto setIsOn = toggleClass.GetMethod("set_isOn", 1).cast<void>();
+        if (!getIsOn.IsValid() || !setIsOn.IsValid())
+            return errorJson("Toggle isOn accessors unavailable");
+        setIsOn[matchedComponent](!getIsOn[matchedComponent]());
+    }
+
+    LOGI("CLICK_COMPONENT success type=%s name=%s path=%s",
+         componentType.c_str(), matchedName.c_str(), matchedPath.c_str());
+    return std::string("{\"ok\":true,\"type\":\"") +
+        EscapeJson(componentType) + "\",\"name\":\"" +
+        EscapeJson(matchedName) + "\",\"path\":\"" +
+        EscapeJson(matchedPath) + "\"}";
+}
+
 } // namespace XposedPoco
