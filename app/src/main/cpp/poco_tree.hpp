@@ -9,4 +9,6 @@ namespace XposedPoco {
     std::string DumpGameObjectTree(const char* rootName);
     std::string DumpClickableObjects();
     std::string ClickGameObject(const std::string& target);
+    std::string ClickComponent(const std::string& componentType,
+                               const std::string& target);
 }
