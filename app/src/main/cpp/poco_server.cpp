@@ -37,6 +37,7 @@ std::condition_variable g_cv;
 DumpState g_state = DumpState::Idle;
 RequestType g_requestType = RequestType::Dump;
 std::string g_requestTarget;
+std::string g_requestComponentType;
 std::string g_result;
 
 // 指定したバイト数をすべて送信する
@@ -116,11 +117,25 @@ void HandleClient(int fd) {
 
         RequestType requestType = RequestType::Dump;
         std::string target;
+        std::string componentType;
 
         if (command == "DUMP") {
             requestType = RequestType::Dump;
         } else if (command == "CLICKABLES") {
             requestType = RequestType::Clickables;
+        } else if (command.rfind("CLICK_COMPONENT ", 0) == 0) {
+            requestType = RequestType::ClickComponent;
+            const std::string args = command.substr(16);
+            const auto separator = args.find(' ');
+            if (separator == std::string::npos ||
+                separator == 0 || separator + 1 >= args.size()) {
+                if (!SendFrame(fd, R"({"ok":false,"error":"Usage: CLICK_COMPONENT <componentType> <name-or-path>"})")) {
+                    break;
+                }
+                continue;
+            }
+            componentType = args.substr(0, separator);
+            target = args.substr(separator + 1);
         } else if (command.rfind("CLICK ", 0) == 0) {
             requestType = RequestType::Click;
             target = command.substr(6);
@@ -150,6 +165,7 @@ void HandleClient(int fd) {
             g_result.clear();
             g_requestType = requestType;
             g_requestTarget = std::move(target);
+            g_requestComponentType = std::move(componentType);
             g_state = DumpState::Pending;
         }
 
@@ -261,7 +277,8 @@ void StartCommandServer() {
     std::thread(ServerThread).detach();
 }
 
-bool TryBeginRequest(RequestType& type, std::string& target) {
+bool TryBeginRequest(RequestType& type, std::string& target,
+                     std::string& componentType) {
     std::lock_guard<std::mutex> lock(g_mutex);
 
     if (g_state != DumpState::Pending) {
@@ -270,7 +287,9 @@ bool TryBeginRequest(RequestType& type, std::string& target) {
 
     type = g_requestType;
     target = g_requestTarget;
+    componentType = g_requestComponentType;
     g_requestTarget.clear();
+    g_requestComponentType.clear();
     g_state = DumpState::Processing;
     return true;
 }
