@@ -6,7 +6,7 @@
 #include <sstream>
 #include <utility>
 #include <cstdint>
-
+#include <link.h>
 #include <BNM/Class.hpp>
 #include <BNM/Method.hpp>
 #include <BNM/BasicMonoStructures.hpp>
@@ -25,6 +25,105 @@ using Il2CppObject = BNM::IL2CPP::Il2CppObject;
 using MonoString = BNM::Structures::Mono::String;
 using UnityObject = BNM::UnityEngine::Object;
 
+struct Il2CppModuleBaseSearch {
+    uintptr_t base = 0;
+};
+
+int FindIl2CppModuleBase(
+    struct dl_phdr_info* info,
+    size_t,
+    void* userData
+) {
+    if (!info || !info->dlpi_name || !userData) {
+        return 0;
+    }
+
+    if (std::strstr(info->dlpi_name, "libil2cpp.so")) {
+        auto* result =
+            static_cast<Il2CppModuleBaseSearch*>(userData);
+
+        result->base = static_cast<uintptr_t>(info->dlpi_addr);
+        return 1;
+    }
+
+    return 0;
+}
+
+void LogOpenEggCallbackMetadata() {
+    Il2CppModuleBaseSearch module;
+
+    dl_iterate_phdr(FindIl2CppModuleBase, &module);
+
+    if (module.base == 0) {
+        LOGE("PET_EGG_CALLBACK module libil2cpp.so not found");
+        return;
+    }
+
+    using MethodInfo = BNM::IL2CPP::MethodInfo;
+
+    // TouchEnd の逆アセンブルで確認した ELF 仮想アドレス。
+    constexpr uintptr_t kSuccessSlotRva = 0x31A1540;
+    constexpr uintptr_t kFailureSlotRva = 0x31A1530;
+
+    auto logSlot = [&](const char* label, uintptr_t slotRva) {
+        const uintptr_t slotAddress = module.base + slotRva;
+
+        // TouchEnd では:
+        //   ldr x8, [module_base + slotRva]
+        //   ldr x2, [x8]
+        // の順で読み込まれる。
+        auto* cell = *reinterpret_cast<uintptr_t**>(slotAddress);
+
+        MethodInfo* info = nullptr;
+
+        if (cell != nullptr) {
+            info = *reinterpret_cast<MethodInfo**>(cell);
+        }
+
+        LOGI(
+            "PET_EGG_CALLBACK %s slot=%p cell=%p info=%p",
+            label,
+            reinterpret_cast<void*>(slotAddress),
+            static_cast<void*>(cell),
+            static_cast<void*>(info)
+        );
+
+        if (info == nullptr) {
+            LOGW(
+                "PET_EGG_CALLBACK %s metadata is null",
+                label
+            );
+            return;
+        }
+
+        const uintptr_t methodAddress =
+            reinterpret_cast<uintptr_t>(info->methodPointer);
+
+        const uintptr_t methodRva =
+            methodAddress >= module.base
+                ? methodAddress - module.base
+                : 0;
+
+        LOGI(
+            "PET_EGG_CALLBACK %s name=%s method=%p "
+            "methodRva=0x%llx params=%u token=0x%x",
+            label,
+            info->name ? info->name : "<null>",
+            reinterpret_cast<void*>(info->methodPointer),
+            methodRva,
+            static_cast<unsigned>(info->parameters_count),
+            static_cast<unsigned>(info->token)
+        );
+    };
+
+    LOGI(
+        "PET_EGG_CALLBACK moduleBase=%p",
+        reinterpret_cast<void*>(module.base)
+    );
+
+    logSlot("SUCCESS", kSuccessSlotRva);
+    logSlot("FAILURE", kFailureSlotRva);
+}
 struct SceneValue {
     std::int32_t handle;
 };
@@ -1149,6 +1248,8 @@ if (componentType == "PetEggItem") {
             "PetGameManager.OpenEgg with 3 parameters unavailable"
         );
     }
+
+    LogOpenEggCallbackMetadata();
 
     LOGI(
         "PET_EGG_READY name=%s path=%s item=%p manager=%p "
