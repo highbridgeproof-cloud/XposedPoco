@@ -963,12 +963,25 @@ std::string ClickGameObject(const std::string& target) {
     }
 
     const auto petEggItemClass = BNM::Class("M1PetGame", "PetEggItem");
+
     Il2CppObject* petEggItem = GetComponentByClass(match, petEggItemClass);
+
     if (IsAlive(petEggItem)) {
+        const auto managerClass =
+            BNM::Class("M1PetGame", "PetGameManager");
+
         LogClassMethods("PetEggItem", petEggItemClass);
-        return errorJson("PetEggItem handler is not implemented; inspect METHOD_SCAN PetEggItem in logcat");
+        LogClassMethods("PetGameManager", managerClass);
+
+        LOGI("PET_EGG target=%s path=%s component=%p",
+            matchedName.c_str(),
+            matchedPath.c_str(),
+            static_cast<void*>(petEggItem));
+
+        return errorJson(
+            "PetEggItem detected; inspect PetEggItem and PetGameManager METHOD_SCAN logs"
+        );
     }
-    return errorJson("Matched object type does not have a supported click handler");
 }
 
 
