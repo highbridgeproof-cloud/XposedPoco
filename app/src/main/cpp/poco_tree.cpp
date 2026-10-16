@@ -994,6 +994,8 @@ std::string ClickComponent(
         componentClass = BNM::Class("", "ToggleEX");
     } else if (componentType == "Toggle") {
         componentClass = BNM::Class("UnityEngine.UI", "Toggle");
+    } else if (componentType == "PetEggItem") {
+        componentClass = BNM::Class("M1PetGame", "PetEggItem");
     } else {
         return errorJson("Unsupported component type: " + componentType);
     }
@@ -1052,7 +1054,35 @@ std::string ClickComponent(
     if (!IsClickable(matchedGameObject))
         return errorJson("Target is not currently clickable");
 
-    if (componentType == "Button") {
+
+    if (componentType == "PetEggItem") {
+        const auto petEggItemClass =
+            BNM::Class("M1PetGame", "PetEggItem");
+
+        const auto managerClass =
+            BNM::Class("M1PetGame", "PetGameManager");
+
+        if (!petEggItemClass || !managerClass) {
+            return errorJson(
+                "PetEggItem or PetGameManager class not found"
+            );
+        }
+
+        LogClassMethods("PetEggItem", petEggItemClass);
+        LogClassMethods("PetGameManager", managerClass);
+
+        LOGI(
+            "PET_EGG_CLICK_READY name=%s path=%s component=%p",
+            matchedName.c_str(),
+            matchedPath.c_str(),
+            static_cast<void*>(matchedComponent)
+        );
+
+        return errorJson(
+            "PetEggItem found; manager instance and Action callbacks "
+            "must be resolved before invoking OpenEgg"
+        );
+    } else if (componentType == "Button") {
         auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
         auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
             .GetMethod("IsInteractable", 0).cast<bool>();
