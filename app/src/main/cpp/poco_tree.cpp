@@ -1068,34 +1068,89 @@ std::string ClickComponent(
         return errorJson("Target is not currently clickable");
 
 
-    if (componentType == "PetEggItem") {
-        const auto petEggItemClass =
-            BNM::Class("M1PetGame", "PetEggItem");
 
-        const auto managerClass =
-            BNM::Class("M1PetGame", "PetGameManager");
+if (componentType == "PetEggItem") {
+    const auto petEggItemClass =
+        BNM::Class("M1PetGame", "PetEggItem");
 
-        if (!petEggItemClass || !managerClass) {
-            return errorJson(
-                "PetEggItem or PetGameManager class not found"
-            );
-        }
+    const auto managerClass =
+        BNM::Class("M1PetGame", "PetGameManager");
 
-        LogClassMethods("PetEggItem", petEggItemClass);
+    if (!petEggItemClass || !managerClass) {
+        return errorJson(
+            "PetEggItem or PetGameManager class not found"
+        );
+    }
+
+    // matchedComponent は検索済みの PetEggItem インスタンス。
+    if (!IsAlive(matchedComponent)) {
+        return errorJson("PetEggItem component is no longer alive");
+    }
+
+    // PetGameManager は SingletonMB<PetGameManager> を継承する。
+    // まず継承元の get_Instance() を解決できるか確認する。
+    auto getInstance = managerClass
+        .GetMethod("get_Instance", 0)
+        .cast<Il2CppObject*>();
+
+    if (!getInstance.IsValid()) {
+        LOGI(
+            "PET_EGG manager get_Instance unavailable"
+        );
+
         LogClassMethods("PetGameManager", managerClass);
 
+        return errorJson(
+            "PetGameManager.get_Instance() could not be resolved"
+        );
+    }
+
+    // get_Instance は static メソッドとして呼び出す。
+    Il2CppObject* manager = getInstance();
+
+    if (!IsAlive(manager)) {
         LOGI(
-            "PET_EGG_CLICK_READY name=%s path=%s component=%p",
-            matchedName.c_str(),
-            matchedPath.c_str(),
-            static_cast<void*>(matchedComponent)
+            "PET_EGG manager instance is null or not alive"
         );
 
         return errorJson(
-            "PetEggItem found; manager instance and Action callbacks "
-            "must be resolved before invoking OpenEgg"
+            "PetGameManager instance is null or not alive"
         );
-    } else if (componentType == "Button") {
+    }
+
+    // OpenEgg(PetEggItem, Action, Action) の存在を検証する。
+    // ここでは呼び出さない。
+    auto openEgg = managerClass
+        .GetMethod("OpenEgg", 3)
+        .cast<void>();
+
+    if (!openEgg.IsValid()) {
+        LOGI(
+            "PET_EGG OpenEgg(PetEggItem, Action, Action) unavailable"
+        );
+
+        LogClassMethods("PetGameManager", managerClass);
+
+        return errorJson(
+            "PetGameManager.OpenEgg with 3 parameters unavailable"
+        );
+    }
+
+    LOGI(
+        "PET_EGG_READY name=%s path=%s item=%p manager=%p "
+        "getInstance=valid openEgg=valid",
+        matchedName.c_str(),
+        matchedPath.c_str(),
+        static_cast<void*>(matchedComponent),
+        static_cast<void*>(manager)
+    );
+
+    return errorJson(
+        "PetEggItem and PetGameManager resolved; "
+        "OpenEgg callbacks still need to be resolved"
+    );
+} else if (componentType == "Button") {
+
         auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
         auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
             .GetMethod("IsInteractable", 0).cast<bool>();
