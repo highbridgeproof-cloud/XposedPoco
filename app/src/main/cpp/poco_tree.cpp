@@ -12,6 +12,7 @@
 #include <BNM/BasicMonoStructures.hpp>
 #include <BNM/UnityStructures.hpp>
 #include <BNM/Utils.hpp>
+#include "BNM/FieldBase.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -982,6 +983,7 @@ std::string ClickGameObject(const std::string& target) {
             "PetEggItem detected; inspect PetEggItem and PetGameManager METHOD_SCAN logs"
         );
     }
+    return errorJson("No supported clickable component found on target");
 }
 
 
@@ -1086,6 +1088,18 @@ if (componentType == "PetEggItem") {
     if (!IsAlive(matchedComponent)) {
         return errorJson("PetEggItem component is no longer alive");
     }
+    // PetEggItem のフィールド解決状況だけを確認する。
+    // この段階ではフィールド値の読み取りもゲーム操作も行わない。
+    const auto busyField = petEggItemClass.GetField("isBusy");
+    const auto openingField = petEggItemClass.GetField("isOpenEggRunning");
+    const auto eggDataField = petEggItemClass.GetField("eggData");
+
+    LOGI(
+        "PET_EGG_DIAG fields isBusy=%s isOpenEggRunning=%s eggData=%s",
+        busyField.IsValid() ? "valid" : "missing",
+        openingField.IsValid() ? "valid" : "missing",
+        eggDataField.IsValid() ? "valid" : "missing"
+    );
 
     // PetGameManager は SingletonMB<PetGameManager> を継承する。
     // まず継承元の get_Instance() を解決できるか確認する。
