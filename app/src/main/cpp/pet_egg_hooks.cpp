@@ -12,7 +12,8 @@ using PetGameManagerOpenEggFn = void (*)(
     void* manager,
     void* eggItem,
     void* success,
-    void* failure
+    void* failure,
+    void* methodInfo
 );
 
 using NetworkModuleOpenEggFn = void (*)(
@@ -21,7 +22,8 @@ using NetworkModuleOpenEggFn = void (*)(
     int32_t eggSequence,
     void* success,
     void* failure,
-    void* onGiftError
+    void* onGiftError,
+    void* methodInfo
 );
 
 using DummyKenshoGameApiOpenEggFn = void (*)(
@@ -47,16 +49,17 @@ void HookPetGameManagerOpenEgg(
     void* manager,
     void* eggItem,
     void* success,
-    void* failure
+    void* failure,
+    void* methodInfo
 ) {
     LOGI(
-        "PET_EGG_HOOK PetGameManager.OpenEgg this=%p egg=%p success=%p failure=%p",
-        manager, eggItem, success, failure
+        "PET_EGG_HOOK PetGameManager.OpenEgg this=%p egg=%p success=%p failure=%p methodInfo=%p",
+        manager, eggItem, success, failure, methodInfo
     );
 
     auto original = g_originalPetGameManagerOpenEgg;
     if (original != nullptr) {
-        original(manager, eggItem, success, failure);
+        original(manager, eggItem, success, failure, methodInfo);
     } else {
         LOGE("PET_EGG_HOOK PetGameManager.OpenEgg original is null; call skipped");
     }
@@ -68,17 +71,18 @@ void HookNetworkModuleOpenEgg(
     int32_t eggSequence,
     void* success,
     void* failure,
-    void* onGiftError
+    void* onGiftError,
+    void* methodInfo
 ) {
     LOGI(
         "PET_EGG_HOOK NetworkModule.OpenEgg this=%p petId=%d eggSequence=%d "
-        "success=%p failure=%p onGiftError=%p",
-        module, petId, eggSequence, success, failure, onGiftError
+        "success=%p failure=%p onGiftError=%p methodInfo=%p",
+        module, petId, eggSequence, success, failure, onGiftError, methodInfo
     );
 
     auto original = g_originalNetworkModuleOpenEgg;
     if (original != nullptr) {
-        original(module, petId, eggSequence, success, failure, onGiftError);
+        original(module, petId, eggSequence, success, failure, onGiftError, methodInfo);
     } else {
         LOGE("PET_EGG_HOOK NetworkModule.OpenEgg original is null; call skipped");
     }
@@ -90,17 +94,18 @@ void HookDummyKenshoGameApiOpenEgg(
     int32_t eggNumber,
     void* success,
     void* failure,
-    void* onGiftError
+    void* onGiftError,
+    void* methodInfo
 ) {
     LOGI(
         "PET_EGG_HOOK DummyKenshoGameAPI.OpenEgg this=%p petId=%d eggNumber=%d "
-        "success=%p failure=%p onGiftError=%p",
-        module, petId, eggNumber, success, failure, onGiftError
+        "success=%p failure=%p onGiftError=%p methodInfo=%p",
+        module, petId, eggNumber, success, failure, onGiftError, methodInfo
     );
 
     auto original = g_originalDummyKenshoGameApiOpenEgg;
     if (original != nullptr) {
-        original(module, petId, eggNumber, success, failure, onGiftError);
+        original(module, petId, eggNumber, success, failure, onGiftError, methodInfo);
     } else {
         LOGE("PET_EGG_HOOK DummyKenshoGameAPI.OpenEgg original is null; call skipped");
     }
