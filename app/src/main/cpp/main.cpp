@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include "poco_runner.hpp"
 #include "poco_server.hpp"
+#include "pet_egg_hooks.hpp"
 #include <KittyInclude.hpp>
 #include <BNM/Utils.hpp>
 #include <BNM/Loading.hpp>
@@ -24,6 +25,12 @@ static void* KittyMemoryFinder(const char* name, void* data) {
 static void OnPocoBnmLoaded() {
     LOGI("BNM loaded callback fired");
     InstallPocoMainThreadHook();
+
+    // Diagnostic-only hooks: observe the concrete OpenEgg implementations
+    // during normal game flow. They forward every call to the original method.
+    XposedPoco::InstallPetEggOpenHooks(
+        g_il2cppBaseMap.startAddress
+    );
 }
 
 EGLBoolean (*old_eglSwapBuffers)(...);
