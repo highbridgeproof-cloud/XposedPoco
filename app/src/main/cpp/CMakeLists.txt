@@ -19,6 +19,7 @@ add_library(
         libraries/ImGui/backends/imgui_impl_android.cpp
         main.cpp
         poco_tree.cpp
+        pet_egg_hooks.cpp
         poco_runner.cpp
         poco_server.cpp
 )
