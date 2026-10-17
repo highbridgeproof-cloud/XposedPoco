@@ -32,7 +32,8 @@ using DummyKenshoGameApiOpenEggFn = void (*)(
     int32_t eggNumber,
     void* success,
     void* failure,
-    void* onGiftError
+    void* onGiftError,
+    void* methodInfo
 );
 
 constexpr uintptr_t kPetGameManagerOpenEggRva = 0x277A1A0;
