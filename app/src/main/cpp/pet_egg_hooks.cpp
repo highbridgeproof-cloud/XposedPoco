@@ -120,11 +120,11 @@ bool InstallOne(
     const char* label
 ) {
     void* target = reinterpret_cast<void*>(targetAddress);
-    const int status = DobbyHook(
-        target,
-        reinterpret_cast<void*>(hook),
-        reinterpret_cast<void**>(original)
-    );
+
+    auto replace = reinterpret_cast<dobby_dummy_func_t>(hook);
+    auto origin = reinterpret_cast<dobby_dummy_func_t*>(original);
+
+    const int status = DobbyHook(target, replace, origin);
 
     LOGI(
         "PET_EGG_HOOK install %s status=%d target=%p original=%p",
