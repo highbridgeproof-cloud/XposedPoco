@@ -323,6 +323,83 @@ bool GetActiveInHierarchy(Il2CppObject* gameObject) {
     return method[gameObject]();
 }
 
+static void LogEggItemInfo(
+    Il2CppObject* gameObject,
+    BNM::Class petEggItemClass,
+    BNM::Class collider2DClass)
+{
+    if (!IsAlive(gameObject)) {
+        EGG_LOGW("EggLog: GameObject is null");
+        return;
+    }
+
+    Il2CppObject* eggItem =
+        GetComponentByClass(gameObject, petEggItemClass);
+
+    if (!IsAlive(eggItem)) {
+        EGG_LOGI("EggLog: PetEggItem not found");
+        return;
+    }
+
+    // GameObject / Transform
+    auto gameObjectClass = BNM::Class("UnityEngine", "GameObject");
+    auto transformClass = BNM::Class("UnityEngine", "Transform");
+
+    auto getName = gameObjectClass.GetMethod("get_name", 0);
+    auto getTransform =
+        BNM::Class("UnityEngine", "Component").GetMethod("get_transform", 0);
+
+    auto getPosition = transformClass.GetMethod("get_position", 0);
+
+    if (!getTransform.IsValid() || !getPosition.IsValid()) {
+        EGG_LOGW("EggLog: Transform methods unavailable");
+        return;
+    }
+
+    Il2CppObject* transform = getTransform(gameObject);
+
+    if (!IsAlive(transform)) {
+        EGG_LOGW("EggLog: Transform is null");
+        return;
+    }
+
+    // Vector3 は値型なので、BNM 側の戻り値取得方法は
+    // プロジェクト内で使っている Vector3 の定義に合わせて調整する。
+    EGG_LOGI("EggLog: gameObject=%p eggItem=%p transform=%p",
+             gameObject, eggItem, transform);
+
+    // Collider2D の有無と enabled 状態
+    Il2CppObject* collider =
+        GetComponentByClass(gameObject, collider2DClass);
+
+    if (!IsAlive(collider)) {
+        EGG_LOGI("EggLog: Collider2D missing");
+        return;
+    }
+
+    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
+        .GetMethod("get_enabled", 0);
+
+    if (getEnabled.IsValid()) {
+        bool enabled = getEnabled.cast<bool>()(collider);
+        EGG_LOGI("EggLog: Collider2D=%p enabled=%d",
+                 collider, enabled ? 1 : 0);
+    } else {
+        EGG_LOGW("EggLog: Behaviour.get_enabled unavailable");
+    }
+
+    // IsPoopOrRotten の結果
+    auto isPoopOrRotten =
+        petEggItemClass.GetMethod("IsPoopOrRotten", 0);
+
+    if (isPoopOrRotten.IsValid()) {
+        bool result = isPoopOrRotten.cast<bool>()(eggItem);
+        EGG_LOGI("EggLog: IsPoopOrRotten=%d", result ? 1 : 0);
+    } else {
+        EGG_LOGW("EggLog: IsPoopOrRotten unavailable");
+    }
+}
+    
 Il2CppObject* GetComponentByClass(
     Il2CppObject* gameObject,
     BNM::Class componentClass
@@ -398,6 +475,7 @@ bool IsClickable(Il2CppObject* gameObject) {
     if (!IsAlive(collider2D)) {
         return false;
     }
+    
 
     auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
         .GetMethod("get_enabled", 0)
@@ -406,6 +484,7 @@ bool IsClickable(Il2CppObject* gameObject) {
     if (!getEnabled.IsValid()) {
         return false;
     }
+    LogEggItemInfo(gameObject, petEggItemClass, collider2DClass);
 
     return getEnabled[collider2D]();
 }
@@ -1168,123 +1247,121 @@ std::string ClickComponent(
     if (!IsClickable(matchedGameObject))
         return errorJson("Target is not currently clickable");
 
+    if (componentType == "PetEggItem") {
+        const auto petEggItemClass =
+            BNM::Class("M1PetGame", "PetEggItem");
 
+        const auto managerClass =
+            BNM::Class("M1PetGame", "PetGameManager");
 
-if (componentType == "PetEggItem") {
-    const auto petEggItemClass =
-        BNM::Class("M1PetGame", "PetEggItem");
+        if (!petEggItemClass || !managerClass) {
+            return errorJson(
+                "PetEggItem or PetGameManager class not found"
+            );
+        }
 
-    const auto managerClass =
-        BNM::Class("M1PetGame", "PetGameManager");
+        // matchedComponent は検索済みの PetEggItem インスタンス。
+        if (!IsAlive(matchedComponent)) {
+            return errorJson("PetEggItem component is no longer alive");
+        }
+        // PetEggItem のフィールド解決状況だけを確認する。
+        // この段階ではフィールド値の読み取りもゲーム操作も行わない。
+        const auto busyField = petEggItemClass.GetField("isBusy");
+        const auto openingField = petEggItemClass.GetField("isOpenEggRunning");
+        const auto eggDataField = petEggItemClass.GetField("eggData");
 
-    if (!petEggItemClass || !managerClass) {
-        return errorJson(
-            "PetEggItem or PetGameManager class not found"
-        );
-    }
-
-    // matchedComponent は検索済みの PetEggItem インスタンス。
-    if (!IsAlive(matchedComponent)) {
-        return errorJson("PetEggItem component is no longer alive");
-    }
-    // PetEggItem のフィールド解決状況だけを確認する。
-    // この段階ではフィールド値の読み取りもゲーム操作も行わない。
-    const auto busyField = petEggItemClass.GetField("isBusy");
-    const auto openingField = petEggItemClass.GetField("isOpenEggRunning");
-    const auto eggDataField = petEggItemClass.GetField("eggData");
-
-    LOGI(
-        "PET_EGG_DIAG fields isBusy=%s isOpenEggRunning=%s eggData=%s",
-        busyField.IsValid() ? "valid" : "missing",
-        openingField.IsValid() ? "valid" : "missing",
-        eggDataField.IsValid() ? "valid" : "missing"
-    );
-
-    // PetGameManager は SingletonMB<PetGameManager> を継承する。
-    // まず継承元の get_Instance() を解決できるか確認する。
-    auto getInstance = managerClass
-        .GetMethod("get_Instance", 0)
-        .cast<Il2CppObject*>();
-
-    if (!getInstance.IsValid()) {
         LOGI(
-            "PET_EGG manager get_Instance unavailable"
+            "PET_EGG_DIAG fields isBusy=%s isOpenEggRunning=%s eggData=%s",
+            busyField.IsValid() ? "valid" : "missing",
+            openingField.IsValid() ? "valid" : "missing",
+            eggDataField.IsValid() ? "valid" : "missing"
         );
 
-        LogClassMethods("PetGameManager", managerClass);
-
-        return errorJson(
-            "PetGameManager.get_Instance() could not be resolved"
-        );
-    }
-
-    // get_Instance は static メソッドとして呼び出す。
-    Il2CppObject* manager = getInstance();
-
-    if (!IsAlive(manager)) {
-        LOGI(
-            "PET_EGG manager instance is null or not alive"
-        );
-
-        return errorJson(
-            "PetGameManager instance is null or not alive"
-        );
-    }
-
-    // OpenEgg(PetEggItem, Action, Action) の存在を検証する。
-    // ここでは呼び出さない。
-    auto openEgg = managerClass
-        .GetMethod("OpenEgg", 3)
-        .cast<void>();
-
-    if (!openEgg.IsValid()) {
-        LOGI(
-            "PET_EGG OpenEgg(PetEggItem, Action, Action) unavailable"
-        );
-
-        LogClassMethods("PetGameManager", managerClass);
-
-        return errorJson(
-            "PetGameManager.OpenEgg with 3 parameters unavailable"
-        );
-    }
-
-    LogOpenEggCallbackMetadata();
-
-    LOGI(
-        "PET_EGG_READY name=%s path=%s item=%p manager=%p "
-        "getInstance=valid openEgg=valid",
-        matchedName.c_str(),
-        matchedPath.c_str(),
-        static_cast<void*>(matchedComponent),
-        static_cast<void*>(manager)
-    );
-
-    return errorJson(
-        "PetEggItem and PetGameManager resolved; "
-        "OpenEgg callbacks still need to be resolved"
-    );
-} else if (componentType == "Button") {
-
-        auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
-        auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
-            .GetMethod("IsInteractable", 0).cast<bool>();
-        if (!isInteractable.IsValid() || !isInteractable[matchedComponent]())
-            return errorJson("Button is not interactable");
-
-        auto getOnClick = buttonClass.GetMethod("get_onClick", 0)
+        // PetGameManager は SingletonMB<PetGameManager> を継承する。
+        // まず継承元の get_Instance() を解決できるか確認する。
+        auto getInstance = managerClass
+            .GetMethod("get_Instance", 0)
             .cast<Il2CppObject*>();
-        if (!getOnClick.IsValid())
-            return errorJson("Button.get_onClick() unavailable");
-        Il2CppObject* unityEvent = getOnClick[matchedComponent]();
-        if (!IsAlive(unityEvent))
-            return errorJson("Button.onClick is null");
 
-        auto invoke = BNM::Class("UnityEngine.Events", "UnityEvent")
-            .GetMethod("Invoke", 0).cast<void>();
-        if (!invoke.IsValid())
-            return errorJson("UnityEvent.Invoke() unavailable");
-        invoke[unityEvent]();
+        if (!getInstance.IsValid()) {
+            LOGI(
+                "PET_EGG manager get_Instance unavailable"
+            );
+
+            LogClassMethods("PetGameManager", managerClass);
+
+            return errorJson(
+                "PetGameManager.get_Instance() could not be resolved"
+            );
+        }
+
+        // get_Instance は static メソッドとして呼び出す。
+        Il2CppObject* manager = getInstance();
+
+        if (!IsAlive(manager)) {
+            LOGI(
+                "PET_EGG manager instance is null or not alive"
+            );
+
+            return errorJson(
+                "PetGameManager instance is null or not alive"
+            );
+        }
+
+        // OpenEgg(PetEggItem, Action, Action) の存在を検証する。
+        // ここでは呼び出さない。
+        auto openEgg = managerClass
+            .GetMethod("OpenEgg", 3)
+            .cast<void>();
+
+        if (!openEgg.IsValid()) {
+            LOGI(
+                "PET_EGG OpenEgg(PetEggItem, Action, Action) unavailable"
+            );
+
+            LogClassMethods("PetGameManager", managerClass);
+
+            return errorJson(
+                "PetGameManager.OpenEgg with 3 parameters unavailable"
+            );
+        }
+
+        LogOpenEggCallbackMetadata();
+
+        LOGI(
+            "PET_EGG_READY name=%s path=%s item=%p manager=%p "
+            "getInstance=valid openEgg=valid",
+            matchedName.c_str(),
+            matchedPath.c_str(),
+            static_cast<void*>(matchedComponent),
+            static_cast<void*>(manager)
+        );
+
+        return errorJson(
+            "PetEggItem and PetGameManager resolved; "
+            "OpenEgg callbacks still need to be resolved"
+        );
+    } else if (componentType == "Button") {
+
+            auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
+            auto isInteractable = BNM::Class("UnityEngine.UI", "Selectable")
+                .GetMethod("IsInteractable", 0).cast<bool>();
+            if (!isInteractable.IsValid() || !isInteractable[matchedComponent]())
+                return errorJson("Button is not interactable");
+
+            auto getOnClick = buttonClass.GetMethod("get_onClick", 0)
+                .cast<Il2CppObject*>();
+            if (!getOnClick.IsValid())
+                return errorJson("Button.get_onClick() unavailable");
+            Il2CppObject* unityEvent = getOnClick[matchedComponent]();
+            if (!IsAlive(unityEvent))
+                return errorJson("Button.onClick is null");
+
+            auto invoke = BNM::Class("UnityEngine.Events", "UnityEvent")
+                .GetMethod("Invoke", 0).cast<void>();
+            if (!invoke.IsValid())
+                return errorJson("UnityEvent.Invoke() unavailable");
+            invoke[unityEvent]();
     } else {
         // ToggleEX は UnityEngine.UI.Toggle の派生クラス。
         // isOn setter を使い、ToggleGroup と onValueChanged の通常経路を通す。
