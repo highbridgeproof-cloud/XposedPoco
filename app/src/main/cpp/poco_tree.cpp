@@ -1559,7 +1559,7 @@ std::string ClickComponent(
         EscapeJson(matchedPath) + "\"}";
 }
 
-std::string SetBoostFeatureRunning(bool value,std::string& target) {
+std::string SetBoostFeatureRunning(bool value, const std::string& target) {
     if (!BNM::IsLoaded()) {
         return R"({"ok":false,"error":"BNM is not loaded"})";
     }
@@ -1580,19 +1580,21 @@ std::string SetBoostFeatureRunning(bool value,std::string& target) {
     }
 
     // void set_IsBoostFeedFeatureRunning(bool value)
+    auto setBoost = BNM::MethodBase{};
     if( target == "Feed"){
         auto setBoost = managerClass
             .GetMethod("set_IsBoostFeedFeatureRunning", 1)
-            .cast<void, bool>();
+            .cast<void>();
     } else if ( target == "Pet"){
         auto setBoost = managerClass
             .GetMethod("set_IsBoostPetFeatureRunning", 1)
-            .cast<void, bool>();
+            .cast<void>();
     } else if ( target == "Vitamin"){
         auto setBoost = managerClass
             .GetMethod("set_IsBoostVitaminFeatureRunning", 1)
-            .cast<void, bool>();
-    } else {
+            .cast<void>();
+    } 
+    if (!setBoost.IsValid()) {
         return R"({"ok":false,"error":"incorrect boost item"})";
     }    
     LOGI(
@@ -1601,7 +1603,7 @@ std::string SetBoostFeatureRunning(bool value,std::string& target) {
         value ? 1 : 0
     );
 
-    setBoost[manager](value);
+    setBoost.cast<void>()[manager](value);
 
     LOGI("BOOST: setter invoked successfully");
 
@@ -1612,7 +1614,7 @@ std::string SetBoostFeatureRunning(bool value,std::string& target) {
     
 std::string SetBoost(const std::string& target) {
     std::string result = SetBoostFeatureRunning(true,target);
-    return result
+    return result;
 }    
 
 } // namespace XposedPoco
