@@ -1580,32 +1580,27 @@ std::string SetBoostFeatureRunning(bool value, const std::string& target) {
     }
 
     // void set_IsBoostFeedFeatureRunning(bool value)
-    auto setBoost = BNM::MethodBase{};
-    if( target == "Feed"){
-        auto setBoost = managerClass
-            .GetMethod("set_IsBoostFeedFeatureRunning", 1)
-            .cast<void>();
-    } else if ( target == "Pet"){
-        auto setBoost = managerClass
-            .GetMethod("set_IsBoostPetFeatureRunning", 1)
-            .cast<void>();
-    } else if ( target == "Vitamin"){
-        auto setBoost = managerClass
-            .GetMethod("set_IsBoostVitaminFeatureRunning", 1)
-            .cast<void>();
-    } else {
-        return R"({"ok":false,"error":std::format("{} is not in boost method", target})";
-    }
-    if (!setBoost.IsValid()) {
-        return R"({"ok":false,"error":"boost method is not available"})";
-    }    
-    LOGI(
-        "BOOST: manager=%p value=%d",
-        static_cast<void*>(manager),
-        value ? 1 : 0
-    );
+    BNM::MethodBase setBoost;
 
-    setBoost.cast<void>()[manager](value);
+    if (target == "Feed") {
+        setBoost = managerClass
+            .GetMethod("set_IsBoostFeedFeatureRunning", 1);
+    } else if (target == "Pet") {
+        setBoost = managerClass
+            .GetMethod("set_IsBoostPetFeatureRunning", 1);
+    } else if (target == "Vitamin") {
+        setBoost = managerClass
+            .GetMethod("set_IsBoostVitaminFeatureRunning", 1);
+    } else {
+        return R"({"ok":false,"error":"incorrect boost target"})";
+    }
+
+    if (!setBoost.IsValid()) {
+        LOGI("BOOST: setter not found: target=%s", target.c_str());
+        return R"({"ok":false,"error":"boost method is not available"})";
+    }
+
+    setBoost.cast<void>()[manager](true);
 
     LOGI("BOOST: setter invoked successfully");
 
