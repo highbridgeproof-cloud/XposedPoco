@@ -9,7 +9,8 @@ enum class RequestType {
     Dump,
     Clickables,
     Click,
-    ClickComponent
+    ClickComponent,
+    Boost
 };
 void StartCommandServer();
 

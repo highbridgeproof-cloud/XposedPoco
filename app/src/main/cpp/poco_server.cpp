@@ -145,6 +145,15 @@ void HandleClient(int fd) {
                 }
                 continue;
             }
+        } else if (command == "BOOST_FEED") {
+            requestType = RequestType::Boost; 
+            target = "Feed"
+        } else if (command == "BOOST_PET") {
+            requestType = RequestType::Boost; 
+            target = "Pet"
+        } else if (command == "BOOST_VITAMIN") {
+            requestType = RequestType::Boost; 
+            target = "Vitamin"    
         } else {
             if (!SendFrame(fd, "ERROR: unknown command")) {
                 break;

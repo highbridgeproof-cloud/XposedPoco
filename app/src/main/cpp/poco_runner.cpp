@@ -46,6 +46,8 @@ void EventSystemUpdateHook(Il2CppObject* instance, MethodInfo* method) {
             json = XposedPoco::ClickGameObject(target);
         } else if (requestType == XposedPoco::RequestType::ClickComponent) {
             json = XposedPoco::ClickComponent(componentType, target);
+        } else if (requestType == XposedPoco::RequestType::Boost) {
+            json = XposedPoco::SetBoost(target);    
         } else {
             json = XposedPoco::DumpGameObjectTree("Canvas");
         }

@@ -11,4 +11,5 @@ namespace XposedPoco {
     std::string ClickGameObject(const std::string& target);
     std::string ClickComponent(const std::string& componentType,
                                const std::string& target);
+    std::string SetBoost(const std::string& target);
 }

@@ -1559,4 +1559,60 @@ std::string ClickComponent(
         EscapeJson(matchedPath) + "\"}";
 }
 
+std::string SetBoostFeatureRunning(bool value,std::string& target) {
+    if (!BNM::IsLoaded()) {
+        return R"({"ok":false,"error":"BNM is not loaded"})";
+    }
+
+    const auto managerClass =
+        BNM::Class("M1PetGame", "PetGameManager");
+
+    // Singleton instance
+    auto getInstance = managerClass
+        .GetMethod("get_Instance", 0)
+        .cast<Il2CppObject*>();
+
+    Il2CppObject* manager = getInstance();
+
+    if (!IsAlive(manager)) {
+        LOGI("BOOST: PetGameManager instance is null or invalid");
+        return R"({"ok":false,"error":"PetGameManager instance is invalid"})";
+    }
+
+    // void set_IsBoostFeedFeatureRunning(bool value)
+    if( target == "Feed"){
+        auto setBoost = managerClass
+            .GetMethod("set_IsBoostFeedFeatureRunning", 1)
+            .cast<void, bool>();
+    } else if ( target == "Pet"){
+        auto setBoost = managerClass
+            .GetMethod("set_IsBoostPetFeatureRunning", 1)
+            .cast<void, bool>();
+    } else if ( target == "Vitamin"){
+        auto setBoost = managerClass
+            .GetMethod("set_IsBoostVitaminFeatureRunning", 1)
+            .cast<void, bool>();
+    } else {
+        return R"({"ok":false,"error":"incorrect boost item"})";
+    }    
+    LOGI(
+        "BOOST: manager=%p value=%d",
+        static_cast<void*>(manager),
+        value ? 1 : 0
+    );
+
+    setBoost[manager](value);
+
+    LOGI("BOOST: setter invoked successfully");
+
+    return value
+        ? R"({"ok":true,"method":"set_IsBoostFeatureRunning","value":true})"
+        : R"({"ok":true,"method":"set_IsBoostFeatureRunning","value":false})";
+}
+    
+std::string SetBoost(const std::string& target) {
+    std::string result = SetBoostFeatureRunning(true,target);
+    return result
+}    
+
 } // namespace XposedPoco
