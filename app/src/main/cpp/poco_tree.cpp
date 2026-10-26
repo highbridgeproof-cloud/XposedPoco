@@ -1593,9 +1593,11 @@ std::string SetBoostFeatureRunning(bool value, const std::string& target) {
         auto setBoost = managerClass
             .GetMethod("set_IsBoostVitaminFeatureRunning", 1)
             .cast<void>();
-    } 
+    } else {
+        return R"({"ok":false,"error":std::format("{} is not in boost method", target})";
+    }
     if (!setBoost.IsValid()) {
-        return R"({"ok":false,"error":"incorrect boost item"})";
+        return R"({"ok":false,"error":"boost method is not available"})";
     }    
     LOGI(
         "BOOST: manager=%p value=%d",
