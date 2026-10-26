@@ -345,7 +345,8 @@ Il2CppObject* GetComponentByClass(
 static void LogEggItemInfo(
     Il2CppObject* gameObject,
     BNM::Class petEggItemClass,
-    BNM::Class collider2DClass)
+    BNM::Class collider2DClass),
+    bool colliderEnabled
 {
     if (!IsAlive(gameObject)) {
         LOGW("EggLog: GameObject is null");
@@ -403,7 +404,7 @@ static void LogEggItemInfo(
     if (getEnabled.IsValid()) {
         bool enabled = getEnabled.cast<bool>()(collider);
         LOGI("EggLog: Collider2D=%p enabled=%d",
-                 collider, enabled ? 1 : 0);
+                 collider,colliderEnabled ? 1 : 0);
     } else {
         LOGW("EggLog: Behaviour.get_enabled unavailable");
     }
@@ -487,9 +488,10 @@ bool IsClickable(Il2CppObject* gameObject) {
     if (!getEnabled.IsValid()) {
         return false;
     }
-    LogEggItemInfo(gameObject, petEggItemClass, collider2DClass);
+    
     
     bool enabled = getEnabled[collider2D]();
+    LogEggItemInfo(gameObject, petEggItemClass, collider2DClass, enabled);
     LOGI(
         "IsClickable: gameObject=%p collider2D=%p enabled=%d result=%d",
         (void*)gameObject,
