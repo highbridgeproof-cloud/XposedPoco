@@ -323,83 +323,6 @@ bool GetActiveInHierarchy(Il2CppObject* gameObject) {
     return method[gameObject]();
 }
 
-static void LogEggItemInfo(
-    Il2CppObject* gameObject,
-    BNM::Class petEggItemClass,
-    BNM::Class collider2DClass)
-{
-    if (!IsAlive(gameObject)) {
-        EGG_LOGW("EggLog: GameObject is null");
-        return;
-    }
-
-    Il2CppObject* eggItem =
-        GetComponentByClass(gameObject, petEggItemClass);
-
-    if (!IsAlive(eggItem)) {
-        EGG_LOGI("EggLog: PetEggItem not found");
-        return;
-    }
-
-    // GameObject / Transform
-    auto gameObjectClass = BNM::Class("UnityEngine", "GameObject");
-    auto transformClass = BNM::Class("UnityEngine", "Transform");
-
-    auto getName = gameObjectClass.GetMethod("get_name", 0);
-    auto getTransform =
-        BNM::Class("UnityEngine", "Component").GetMethod("get_transform", 0);
-
-    auto getPosition = transformClass.GetMethod("get_position", 0);
-
-    if (!getTransform.IsValid() || !getPosition.IsValid()) {
-        EGG_LOGW("EggLog: Transform methods unavailable");
-        return;
-    }
-
-    Il2CppObject* transform = getTransform(gameObject);
-
-    if (!IsAlive(transform)) {
-        EGG_LOGW("EggLog: Transform is null");
-        return;
-    }
-
-    // Vector3 は値型なので、BNM 側の戻り値取得方法は
-    // プロジェクト内で使っている Vector3 の定義に合わせて調整する。
-    EGG_LOGI("EggLog: gameObject=%p eggItem=%p transform=%p",
-             gameObject, eggItem, transform);
-
-    // Collider2D の有無と enabled 状態
-    Il2CppObject* collider =
-        GetComponentByClass(gameObject, collider2DClass);
-
-    if (!IsAlive(collider)) {
-        EGG_LOGI("EggLog: Collider2D missing");
-        return;
-    }
-
-    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
-        .GetMethod("get_enabled", 0);
-
-    if (getEnabled.IsValid()) {
-        bool enabled = getEnabled.cast<bool>()(collider);
-        EGG_LOGI("EggLog: Collider2D=%p enabled=%d",
-                 collider, enabled ? 1 : 0);
-    } else {
-        EGG_LOGW("EggLog: Behaviour.get_enabled unavailable");
-    }
-
-    // IsPoopOrRotten の結果
-    auto isPoopOrRotten =
-        petEggItemClass.GetMethod("IsPoopOrRotten", 0);
-
-    if (isPoopOrRotten.IsValid()) {
-        bool result = isPoopOrRotten.cast<bool>()(eggItem);
-        EGG_LOGI("EggLog: IsPoopOrRotten=%d", result ? 1 : 0);
-    } else {
-        EGG_LOGW("EggLog: IsPoopOrRotten unavailable");
-    }
-}
-    
 Il2CppObject* GetComponentByClass(
     Il2CppObject* gameObject,
     BNM::Class componentClass
@@ -418,6 +341,86 @@ Il2CppObject* GetComponentByClass(
 
     return method[gameObject](componentClass.GetMonoType());
 }
+
+static void LogEggItemInfo(
+    Il2CppObject* gameObject,
+    BNM::Class petEggItemClass,
+    BNM::Class collider2DClass)
+{
+    if (!IsAlive(gameObject)) {
+        LOGW("EggLog: GameObject is null");
+        return;
+    }
+
+    Il2CppObject* eggItem =
+        GetComponentByClass(gameObject, petEggItemClass);
+
+    if (!IsAlive(eggItem)) {
+        LOGI("EggLog: PetEggItem not found");
+        return;
+    }
+
+    // GameObject / Transform
+    auto gameObjectClass = BNM::Class("UnityEngine", "GameObject");
+    auto transformClass = BNM::Class("UnityEngine", "Transform");
+
+    auto getName = gameObjectClass.GetMethod("get_name", 0);
+    
+    auto getPosition = transformClass.GetMethod("get_position", 0);
+
+
+    auto getTransform = BNM::Class("UnityEngine", "GameObject")
+        .GetMethod("get_transform", 0)
+        .cast<Il2CppObject*>();
+    if (!getTransform.IsValid() || !getPosition.IsValid()) {
+        LOGW("EggLog: Transform methods unavailable");
+        return;
+    }gi
+    Il2CppObject* transform = getTransform[gameObject]();
+
+    if (!IsAlive(transform)) {
+        LOGW("EggLog: Transform is null");
+        return;
+    }
+
+    // Vector3 は値型なので、BNM 側の戻り値取得方法は
+    // プロジェクト内で使っている Vector3 の定義に合わせて調整する。
+    LOGI("EggLog: gameObject=%p eggItem=%p transform=%p",
+             gameObject, eggItem, transform);
+
+    // Collider2D の有無と enabled 状態
+    Il2CppObject* collider =
+        GetComponentByClass(gameObject, collider2DClass);
+
+    if (!IsAlive(collider)) {
+        LOGI("EggLog: Collider2D missing");
+        return;
+    }
+
+    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
+        .GetMethod("get_enabled", 0);
+
+    if (getEnabled.IsValid()) {
+        bool enabled = getEnabled.cast<bool>()(collider);
+        LOGI("EggLog: Collider2D=%p enabled=%d",
+                 collider, enabled ? 1 : 0);
+    } else {
+        LOGW("EggLog: Behaviour.get_enabled unavailable");
+    }
+
+    // IsPoopOrRotten の結果
+    auto isPoopOrRotten =
+        petEggItemClass.GetMethod("IsPoopOrRotten", 0);
+
+    if (isPoopOrRotten.IsValid()) {
+        bool result = isPoopOrRotten.cast<bool>()(eggItem);
+        LOGI("EggLog: IsPoopOrRotten=%d", result ? 1 : 0);
+    } else {
+        LOGW("EggLog: IsPoopOrRotten unavailable");
+    }
+}
+    
+
 
 
 bool IsClickable(Il2CppObject* gameObject) {
