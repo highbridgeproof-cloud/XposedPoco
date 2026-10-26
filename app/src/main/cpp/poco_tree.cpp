@@ -375,7 +375,7 @@ static void LogEggItemInfo(
     if (!getTransform.IsValid() || !getPosition.IsValid()) {
         LOGW("EggLog: Transform methods unavailable");
         return;
-    }gi
+    }
     Il2CppObject* transform = getTransform[gameObject]();
 
     if (!IsAlive(transform)) {
@@ -488,8 +488,17 @@ bool IsClickable(Il2CppObject* gameObject) {
         return false;
     }
     LogEggItemInfo(gameObject, petEggItemClass, collider2DClass);
+    
+    bool enabled = getEnabled[collider2D]();
+    LOGI(
+        "IsClickable: gameObject=%p collider2D=%p enabled=%d result=%d",
+        (void*)gameObject,
+        (void*)collider2D,
+        enabled ? 1 : 0,
+        enabled ? 1 : 0
+    );
 
-    return getEnabled[collider2D]();
+    return enabled;
 }
 
 
@@ -1045,7 +1054,20 @@ std::string DumpClickableObjects() {
 
         Il2CppObject* object = data[i];
 
-        if (!IsAlive(object) || !IsClickable(object)) {
+        if (!IsAlive(object)) {
+            continue;
+        }
+
+        const bool clickable = IsClickable(object);
+
+        LOGI(
+            "DumpClickableObjects: object=%p clickable=%d name=%s",
+            (void*)object,
+            clickable ? 1 : 0,
+            GetObjectName(object).c_str()
+        );
+
+        if (!clickable) {
             continue;
         }
 
