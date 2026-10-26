@@ -345,8 +345,8 @@ Il2CppObject* GetComponentByClass(
 static void LogEggItemInfo(
     Il2CppObject* gameObject,
     BNM::Class petEggItemClass,
-    BNM::Class collider2DClass),
-    bool colliderEnabled
+    BNM::Class collider2DClass,
+    bool colliderEnabled)
 {
     if (!IsAlive(gameObject)) {
         LOGW("EggLog: GameObject is null");
@@ -1275,99 +1275,159 @@ std::string ClickComponent(
         return errorJson("Target is not currently clickable");
 
     if (componentType == "PetEggItem") {
-        const auto petEggItemClass =
-            BNM::Class("M1PetGame", "PetEggItem");
+        using UnityVector3 = BNM::Structures::Unity::Vector3;
 
-        const auto managerClass =
-            BNM::Class("M1PetGame", "PetGameManager");
-
-        if (!petEggItemClass || !managerClass) {
-            return errorJson(
-                "PetEggItem or PetGameManager class not found"
-            );
-        }
-
-        // matchedComponent は検索済みの PetEggItem インスタンス。
-        if (!IsAlive(matchedComponent)) {
-            return errorJson("PetEggItem component is no longer alive");
-        }
-        // PetEggItem のフィールド解決状況だけを確認する。
-        // この段階ではフィールド値の読み取りもゲーム操作も行わない。
-        const auto busyField = petEggItemClass.GetField("isBusy");
-        const auto openingField = petEggItemClass.GetField("isOpenEggRunning");
-        const auto eggDataField = petEggItemClass.GetField("eggData");
-
-        LOGI(
-            "PET_EGG_DIAG fields isBusy=%s isOpenEggRunning=%s eggData=%s",
-            busyField.IsValid() ? "valid" : "missing",
-            openingField.IsValid() ? "valid" : "missing",
-            eggDataField.IsValid() ? "valid" : "missing"
-        );
-
-        // PetGameManager は SingletonMB<PetGameManager> を継承する。
-        // まず継承元の get_Instance() を解決できるか確認する。
-        auto getInstance = managerClass
-            .GetMethod("get_Instance", 0)
+        // PetEggItem の GameObject からワールド座標を取得
+        auto getTransform = GameObjectClass()
+            .GetMethod("get_transform", 0)
             .cast<Il2CppObject*>();
 
-        if (!getInstance.IsValid()) {
-            LOGI(
-                "PET_EGG manager get_Instance unavailable"
-            );
+        auto getPosition = TransformClass()
+            .GetMethod("get_position", 0)
+            .cast<UnityVector3>();
 
-            LogClassMethods("PetGameManager", managerClass);
-
-            return errorJson(
-                "PetGameManager.get_Instance() could not be resolved"
-            );
+        if (!getTransform.IsValid() || !getPosition.IsValid()) {
+            return errorJson("Transform position methods unavailable");
         }
 
-        // get_Instance は static メソッドとして呼び出す。
-        Il2CppObject* manager = getInstance();
-
-        if (!IsAlive(manager)) {
-            LOGI(
-                "PET_EGG manager instance is null or not alive"
-            );
-
-            return errorJson(
-                "PetGameManager instance is null or not alive"
-            );
+        Il2CppObject* transform = getTransform[matchedGameObject]();
+        if (!IsAlive(transform)) {
+            return errorJson("PetEggItem Transform is invalid");
         }
 
-        // OpenEgg(PetEggItem, Action, Action) の存在を検証する。
-        // ここでは呼び出さない。
-        auto openEgg = managerClass
-            .GetMethod("OpenEgg", 3)
-            .cast<void>();
+        UnityVector3 worldPosition = getPosition[transform]();
 
-        if (!openEgg.IsValid()) {
-            LOGI(
-                "PET_EGG OpenEgg(PetEggItem, Action, Action) unavailable"
-            );
+        // ワールド座標をスクリーン座標へ変換
+        auto cameraClass = BNM::Class("UnityEngine", "Camera");
 
-            LogClassMethods("PetGameManager", managerClass);
+        auto getMainCamera = cameraClass
+            .GetMethod("get_main", 0)
+            .cast<Il2CppObject*>();
 
-            return errorJson(
-                "PetGameManager.OpenEgg with 3 parameters unavailable"
-            );
+        auto worldToScreenPoint = cameraClass
+            .GetMethod("WorldToScreenPoint", 1)
+            .cast<UnityVector3>();
+
+        if (!getMainCamera.IsValid() || !worldToScreenPoint.IsValid()) {
+            return errorJson("Camera coordinate methods unavailable");
         }
 
-        LogOpenEggCallbackMetadata();
+        Il2CppObject* camera = getMainCamera();
+        if (!IsAlive(camera)) {
+            return errorJson("Camera.main is null or invalid");
+        }
+
+        UnityVector3 screenPosition =
+            worldToScreenPoint[camera](worldPosition);
 
         LOGI(
-            "PET_EGG_READY name=%s path=%s item=%p manager=%p "
-            "getInstance=valid openEgg=valid",
+            "PET_EGG_POSITION name=%s world=(%.2f,%.2f,%.2f) "
+            "screen=(%.2f,%.2f,%.2f)",
             matchedName.c_str(),
-            matchedPath.c_str(),
-            static_cast<void*>(matchedComponent),
-            static_cast<void*>(manager)
+            worldPosition.x, worldPosition.y, worldPosition.z,
+            screenPosition.x, screenPosition.y, screenPosition.z
+        );
+        // PetTapManager のインスタンスを検索
+        auto petTapManagerClass =
+            BNM::Class("M1PetGame", "PetTapManager");
+
+        if (!petTapManagerClass) {
+            return errorJson("PetTapManager class not found");
+        }
+
+        auto findManagers = ObjectClass()
+            .GetMethod("FindObjectsOfType", 2)
+            .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+        if (!findManagers.IsValid()) {
+            return errorJson("FindObjectsOfType unavailable");
+        }
+
+        auto managers = findManagers(
+            petTapManagerClass.GetMonoType(),
+            true
         );
 
-        return errorJson(
-            "PetEggItem and PetGameManager resolved; "
-            "OpenEgg callbacks still need to be resolved"
+        if (!managers) {
+            return errorJson("PetTapManager search returned null");
+        }
+
+        auto getManagerGameObject = BNM::Class("UnityEngine", "Component")
+            .GetMethod("get_gameObject", 0)
+            .cast<Il2CppObject*>();
+
+        if (!getManagerGameObject.IsValid()) {
+            return errorJson("Component.get_gameObject unavailable");
+        }
+
+        Il2CppObject* manager = nullptr;
+        int activeManagerCount = 0;
+
+        auto managerData = managers->GetData();
+        const auto managerCount =
+            static_cast<std::size_t>(managers->GetSize());
+
+        for (std::size_t i = 0; i < managerCount; ++i) {
+            Il2CppObject* candidate = managerData[i];
+
+            if (!IsAlive(candidate)) {
+                continue;
+            }
+
+            Il2CppObject* managerGameObject =
+                getManagerGameObject[candidate]();
+
+            if (!IsAlive(managerGameObject) ||
+                !GetActiveInHierarchy(managerGameObject)) {
+                continue;
+            }
+
+            manager = candidate;
+            ++activeManagerCount;
+        }
+
+        if (activeManagerCount != 1 || !IsAlive(manager)) {
+            LOGE(
+                "PET_EGG_TOUCH manager count=%d",
+                activeManagerCount
+            );
+            return errorJson(
+                "Expected exactly one active PetTapManager"
+            );
+        }
+
+        // private TouchEnd(int touchID, Vector3 touchPosition) を解決
+        auto touchEnd = petTapManagerClass
+            .GetMethod("TouchEnd", 2)
+            .cast<void>();
+
+        if (!touchEnd.IsValid()) {
+            LogClassMethods("PetTapManager", petTapManagerClass);
+            return errorJson("PetTapManager.TouchEnd(int, Vector3) unavailable");
+        }
+
+        // touchID=0、touchPosition=スクリーン座標
+        LOGI(
+            "PET_EGG_TOUCH invoke manager=%p item=%p "
+            "touchID=0 screen=(%.2f,%.2f,%.2f)",
+            static_cast<void*>(manager),
+            static_cast<void*>(matchedComponent),
+            screenPosition.x,
+            screenPosition.y,
+            screenPosition.z
         );
+
+        touchEnd[manager](0, screenPosition);
+
+        LOGI(
+            "PET_EGG_TOUCH TouchEnd returned name=%s",
+            matchedName.c_str()
+        );
+
+        return std::string("{\"ok\":true,\"type\":\"PetEggItem\","
+            "\"name\":\"") + EscapeJson(matchedName) +
+            "\",\"path\":\"" + EscapeJson(matchedPath) +
+            "\",\"touchID\":0}";        
     } else if (componentType == "Button") {
 
             auto buttonClass = BNM::Class("UnityEngine.UI", "Button");
