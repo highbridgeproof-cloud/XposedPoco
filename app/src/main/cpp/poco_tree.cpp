@@ -1299,31 +1299,117 @@ std::string ClickComponent(
 
         // ワールド座標をスクリーン座標へ変換
         auto cameraClass = BNM::Class("UnityEngine", "Camera");
+        auto behaviourClass = BNM::Class("UnityEngine", "Behaviour");
+        auto componentClass = BNM::Class("UnityEngine", "Component");
 
-        auto getMainCamera = cameraClass
-            .GetMethod("get_main", 0)
+        auto findCameras = ObjectClass()
+            .GetMethod("FindObjectsOfType", 2)
+            .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+        auto getCameraEnabled = behaviourClass
+            .GetMethod("get_enabled", 0)
+            .cast<bool>();
+
+        auto getCameraGameObject = componentClass
+            .GetMethod("get_gameObject", 0)
             .cast<Il2CppObject*>();
+
+        auto getTag = GameObjectClass()
+            .GetMethod("get_tag", 0)
+            .cast<MonoString*>();
 
         auto worldToScreenPoint = cameraClass
             .GetMethod("WorldToScreenPoint", 1)
             .cast<UnityVector3>();
 
-        if (!getMainCamera.IsValid() || !worldToScreenPoint.IsValid()) {
-            return errorJson("Camera coordinate methods unavailable");
+        if (!findCameras.IsValid() ||
+            !getCameraEnabled.IsValid() ||
+            !getCameraGameObject.IsValid() ||
+            !getTag.IsValid() ||
+            !worldToScreenPoint.IsValid()) {
+            return errorJson("Camera lookup methods unavailable");
         }
 
-        Il2CppObject* camera = getMainCamera();
+        auto cameras = findCameras(cameraClass.GetMonoType(), true);
+
+        if (!cameras) {
+            return errorJson("Camera search returned null");
+        }
+
+        Il2CppObject* camera = nullptr;
+        Il2CppObject* mainTaggedCamera = nullptr;
+        Il2CppObject* topCamera = nullptr;
+        int validCameraCount = 0;
+
+        auto cameraData = cameras->GetData();
+        const auto cameraCount =
+            static_cast<std::size_t>(cameras->GetSize());
+
+        for (std::size_t i = 0; i < cameraCount; ++i) {
+            Il2CppObject* candidate = cameraData[i];
+
+            if (!IsAlive(candidate) ||
+                !getCameraEnabled[candidate]()) {
+                continue;
+            }
+
+            Il2CppObject* cameraGO =
+                getCameraGameObject[candidate]();
+
+            if (!IsAlive(cameraGO) ||
+                !GetActiveInHierarchy(cameraGO)) {
+                continue;
+            }
+
+            ++validCameraCount;
+
+            MonoString* tagString = getTag[cameraGO]();
+            const std::string tag =
+                tagString ? tagString->str() : "";
+
+            LOGI(
+                "PET_EGG_CAMERA candidate=%p tag=%s",
+                static_cast<void*>(candidate),
+                tag.c_str()
+            );
+
+            if (tag == "MainCamera") {
+                if (mainTaggedCamera != nullptr) {
+                    return errorJson(
+                        "Multiple active cameras have MainCamera tag"
+                    );
+                }
+                mainTaggedCamera = candidate;
+            }
+            if (tag == "TopCamera") {
+                topCamera = candidate;
+                LOGI("PET_EGG_CAMERA selected TopCamera=%p", camera);
+            }
+
+            camera = candidate;
+        }
+
+        if (mainTaggedCamera != nullptr) {
+            camera = mainTaggedCamera;
+        } else if (validCameraCount != 1) {
+            camera = topCamera ;    
+        } else if (validCameraCount != 1) {
+            return errorJson(
+                "Camera.main missing and active camera selection is ambiguous"
+            );
+        }
+
         if (!IsAlive(camera)) {
-            return errorJson("Camera.main is null or invalid");
+            return errorJson("No usable active Camera found");
         }
 
         UnityVector3 screenPosition =
             worldToScreenPoint[camera](worldPosition);
 
         LOGI(
-            "PET_EGG_POSITION name=%s world=(%.2f,%.2f,%.2f) "
+            "PET_EGG_POSITION camera=%p world=(%.2f,%.2f,%.2f) "
             "screen=(%.2f,%.2f,%.2f)",
-            matchedName.c_str(),
+            static_cast<void*>(camera),
             worldPosition.x, worldPosition.y, worldPosition.z,
             screenPosition.x, screenPosition.y, screenPosition.z
         );
