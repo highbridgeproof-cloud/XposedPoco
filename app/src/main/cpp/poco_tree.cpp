@@ -457,6 +457,7 @@ bool IsClickable(Il2CppObject* gameObject) {
 
         return isInteractable[selectable]();
     }
+    /*
 
     // 2. ワールド内の卵回収対象を判定
     auto petEggItemClass =
@@ -468,6 +469,7 @@ bool IsClickable(Il2CppObject* gameObject) {
     if (!IsAlive(petEggItem)) {
         return false;
     }
+    */
 
     // Collider2D が存在し、有効な場合のみ候補にする
     auto collider2DClass =
@@ -491,6 +493,7 @@ bool IsClickable(Il2CppObject* gameObject) {
     
     
     bool enabled = getEnabled[collider2D]();
+    /*
     LogEggItemInfo(gameObject, petEggItemClass, collider2DClass, enabled);
     LOGI(
         "IsClickable: gameObject=%p collider2D=%p enabled=%d result=%d",
@@ -499,6 +502,7 @@ bool IsClickable(Il2CppObject* gameObject) {
         enabled ? 1 : 0,
         enabled ? 1 : 0
     );
+    */
 
     return enabled;
 }
