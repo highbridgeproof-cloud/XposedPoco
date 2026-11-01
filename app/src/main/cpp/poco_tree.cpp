@@ -570,11 +570,45 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
 
     auto componentClass = BNM::Class("UnityEngine", "Component");
     auto componentType = componentClass.GetMonoType();
-    auto getComponents = componentClass.GetMethod("GetComponents", 1).cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
-    auto components = getComponents[gameObject](componentType);
+
+    // GameObject.GetComponent(Type) で Transform を取得
+    auto transform = GetComponentByClass(
+        gameObject,
+        TransformClass()
+    );
+
+    LOGI(
+        "COMPONENT: gameObject=%p transform=%p alive=%d type=%p",
+        gameObject,
+        transform,
+        IsAlive(transform) ? 1 : 0,
+        componentType
+    );
+
+    if (!IsAlive(transform)) {
+        LOGW("COMPONENT: Transform component not found");
+        return "[]";
+    }
+
+    // Component.GetComponents(Type)
+    auto getComponents = componentClass
+        .GetMethod("GetComponents", 1)
+        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+
+    LOGI(
+        "COMPONENT: GetComponents valid=%d",
+        getComponents.IsValid() ? 1 : 0
+    );
+
+    if (!getComponents.IsValid()) {
+        return "[]";
+    }
+
+    auto components = getComponents[transform](componentType);
+
+    LOGI("COMPONENT: returned array=%p", components);
 
     if (!components) {
-        LOGI("COMPONENT: array is null");
         return "[]";
     }
     /*
