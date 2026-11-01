@@ -567,22 +567,23 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
         return "[]";
     }
 
-    // GameObject.GetComponents(Type) でアタッチ済みコンポーネントを取得
-    auto getComponents = GameObjectClass()
-        .GetMethod("GetComponents", 1)
-        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
-
-    if (!getComponents.IsValid()) {
-        return "[]";
-    }
 
     auto componentClass = BNM::Class("UnityEngine", "Component");
-    auto components =
-        getComponents[gameObject](componentClass.GetMonoType());
+    auto componentType = componentClass.GetMonoType();
+    auto getComponents = componentClass.GetMethod("GetComponents", 1).cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    auto components = getComponents[gameObject](componentType);
 
     if (!components) {
+        LOGI("COMPONENT: array is null");
         return "[]";
     }
+    /*
+    LOGI("COMPONENT: max_length=%d", components->max_length);
+    for (int i = 0; i < components->max_length; i++) {
+        auto component = components->At(i);
+        LOGI("COMPONENT: index=%d ptr=%p", i, component);
+    }
+    */    
 
     const auto count =
         static_cast<std::size_t>(components->GetSize());
