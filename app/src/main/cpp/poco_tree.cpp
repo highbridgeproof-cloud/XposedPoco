@@ -39,9 +39,7 @@ int FindIl2CppModuleBase(
     }
 
     if (std::strstr(info->dlpi_name, "libil2cpp.so")) {
-        auto* result =
-            static_cast<Il2CppModuleBaseSearch*>(userData);
-
+        auto* result = static_cast<Il2CppModuleBaseSearch*>(userData);
         result->base = static_cast<uintptr_t>(info->dlpi_addr);
         return 1;
     }
@@ -89,20 +87,12 @@ void LogOpenEggCallbackMetadata() {
         );
 
         if (info == nullptr) {
-            LOGW(
-                "PET_EGG_CALLBACK %s metadata is null",
-                label
-            );
+            LOGW("PET_EGG_CALLBACK %s metadata is null",label);
             return;
         }
 
-        const uintptr_t methodAddress =
-            reinterpret_cast<uintptr_t>(info->methodPointer);
-
-        const uintptr_t methodRva =
-            methodAddress >= module.base
-                ? methodAddress - module.base
-                : 0;
+        const uintptr_t methodAddress = reinterpret_cast<uintptr_t>(info->methodPointer);
+        const uintptr_t methodRva = methodAddress >= module.base ? methodAddress - module.base : 0;
 
         LOGI(
             "PET_EGG_CALLBACK %s name=%s method=%p "
@@ -191,9 +181,7 @@ BNM::Class ObjectClass() {
 }
 
 Il2CppObject* FindGameObject(const char* name) {
-    auto method = GameObjectClass()
-        .GetMethod("Find", 1)
-        .cast<Il2CppObject*>();
+    auto method = GameObjectClass().GetMethod("Find", 1).cast<Il2CppObject*>();
 
     if (!method.IsValid()) {
         return nullptr;
@@ -207,10 +195,7 @@ std::string GetObjectName(Il2CppObject* object) {
         return {};
     }
 
-    auto method = ObjectClass()
-        .GetMethod("get_name", 0)
-        .cast<MonoString*>();
-
+    auto method = ObjectClass().GetMethod("get_name", 0).cast<MonoString*>();
     if (!method.IsValid()) {
         return {};
     }
@@ -230,10 +215,7 @@ std::string GetParentName(Il2CppObject* gameObject) {
         return {};
     }
 
-    auto getTransform = GameObjectClass()
-        .GetMethod("get_transform", 0)
-        .cast<Il2CppObject*>();
-
+    auto getTransform = GameObjectClass().GetMethod("get_transform", 0).cast<Il2CppObject*>();
     if (!getTransform.IsValid()) {
         return {};
     }
@@ -244,9 +226,7 @@ std::string GetParentName(Il2CppObject* gameObject) {
         return {};
     }
 
-    auto getParent = TransformClass()
-        .GetMethod("get_parent", 0)
-        .cast<Il2CppObject*>();
+    auto getParent = TransformClass().GetMethod("get_parent", 0).cast<Il2CppObject*>();
 
     if (!getParent.IsValid()) {
         return {};
@@ -268,13 +248,8 @@ std::string GetObjectPath(Il2CppObject* gameObject) {
         return {};
     }
 
-    auto getTransform = GameObjectClass()
-        .GetMethod("get_transform", 0)
-        .cast<Il2CppObject*>();
-
-    auto getParent = TransformClass()
-        .GetMethod("get_parent", 0)
-        .cast<Il2CppObject*>();
+    auto getTransform = GameObjectClass().GetMethod("get_transform", 0).cast<Il2CppObject*>();
+    auto getParent = TransformClass().GetMethod("get_parent", 0).cast<Il2CppObject*>();
 
     if (!getTransform.IsValid() || !getParent.IsValid()) {
         return {};
@@ -312,10 +287,7 @@ bool GetActiveInHierarchy(Il2CppObject* gameObject) {
         return false;
     }
 
-    auto method = GameObjectClass()
-        .GetMethod("get_activeInHierarchy", 0)
-        .cast<bool>();
-
+    auto method = GameObjectClass().GetMethod("get_activeInHierarchy", 0).cast<bool>();
     if (!method.IsValid()) {
         return false;
     }
@@ -331,9 +303,7 @@ Il2CppObject* GetComponentByClass(
         return nullptr;
     }
 
-    auto method = GameObjectClass()
-        .GetMethod("GetComponent", 1)
-        .cast<Il2CppObject*>();
+    auto method = GameObjectClass().GetMethod("GetComponent", 1).cast<Il2CppObject*>();
 
     if (!method.IsValid()) {
         return nullptr;
@@ -364,15 +334,9 @@ static void LogEggItemInfo(
     // GameObject / Transform
     auto gameObjectClass = BNM::Class("UnityEngine", "GameObject");
     auto transformClass = BNM::Class("UnityEngine", "Transform");
-
-    auto getName = gameObjectClass.GetMethod("get_name", 0);
-    
+    auto getName = gameObjectClass.GetMethod("get_name", 0);    
     auto getPosition = transformClass.GetMethod("get_position", 0);
-
-
-    auto getTransform = BNM::Class("UnityEngine", "GameObject")
-        .GetMethod("get_transform", 0)
-        .cast<Il2CppObject*>();
+    auto getTransform = BNM::Class("UnityEngine", "GameObject").GetMethod("get_transform", 0).cast<Il2CppObject*>();
     if (!getTransform.IsValid() || !getPosition.IsValid()) {
         LOGW("EggLog: Transform methods unavailable");
         return;
@@ -386,32 +350,27 @@ static void LogEggItemInfo(
 
     // Vector3 は値型なので、BNM 側の戻り値取得方法は
     // プロジェクト内で使っている Vector3 の定義に合わせて調整する。
-    LOGI("EggLog: gameObject=%p eggItem=%p transform=%p",
-             gameObject, eggItem, transform);
+    LOGI("EggLog: gameObject=%p eggItem=%p transform=%p",gameObject, eggItem, transform);
 
     // Collider2D の有無と enabled 状態
-    Il2CppObject* collider =
-        GetComponentByClass(gameObject, collider2DClass);
+    Il2CppObject* collider = GetComponentByClass(gameObject, collider2DClass);
 
     if (!IsAlive(collider)) {
         LOGI("EggLog: Collider2D missing");
         return;
     }
 
-    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
-        .GetMethod("get_enabled", 0);
+    auto getEnabled = BNM::Class("UnityEngine", "Behaviour").GetMethod("get_enabled", 0);
 
     if (getEnabled.IsValid()) {
         bool enabled = getEnabled.cast<bool>()(collider);
-        LOGI("EggLog: Collider2D=%p enabled=%d",
-                 collider,colliderEnabled ? 1 : 0);
+        LOGI("EggLog: Collider2D=%p enabled=%d", collider,colliderEnabled ? 1 : 0);
     } else {
         LOGW("EggLog: Behaviour.get_enabled unavailable");
     }
 
     // IsPoopOrRotten の結果
-    auto isPoopOrRotten =
-        petEggItemClass.GetMethod("IsPoopOrRotten", 0);
+    auto isPoopOrRotten = petEggItemClass.GetMethod("IsPoopOrRotten", 0);
 
     if (isPoopOrRotten.IsValid()) {
         bool result = isPoopOrRotten.cast<bool>()(eggItem);
@@ -431,26 +390,17 @@ bool IsClickable(Il2CppObject* gameObject) {
     }
 
     // 1. 既存の Unity UI 判定を維持
-    auto selectableClass =
-        BNM::Class("UnityEngine.UI", "Selectable");
-
-    Il2CppObject* selectable =
-        GetComponentByClass(gameObject, selectableClass);
+    auto selectableClass = BNM::Class("UnityEngine.UI", "Selectable");
+    Il2CppObject* selectable = GetComponentByClass(gameObject, selectableClass);
 
     if (IsAlive(selectable)) {
-        auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
-            .GetMethod("get_enabled", 0)
-            .cast<bool>();
-
+        auto getEnabled = BNM::Class("UnityEngine", "Behaviour").GetMethod("get_enabled", 0).cast<bool>();
         if (!getEnabled.IsValid() ||
             !getEnabled[selectable]()) {
             return false;
         }
 
-        auto isInteractable = selectableClass
-            .GetMethod("IsInteractable", 0)
-            .cast<bool>();
-
+        auto isInteractable = selectableClass.GetMethod("IsInteractable", 0).cast<bool>();
         if (!isInteractable.IsValid()) {
             return false;
         }
@@ -472,25 +422,16 @@ bool IsClickable(Il2CppObject* gameObject) {
     */
 
     // Collider2D が存在し、有効な場合のみ候補にする
-    auto collider2DClass =
-        BNM::Class("UnityEngine", "Collider2D");
-
-    Il2CppObject* collider2D =
-        GetComponentByClass(gameObject, collider2DClass);
-
+    auto collider2DClass = BNM::Class("UnityEngine", "Collider2D");
+    Il2CppObject* collider2D = GetComponentByClass(gameObject, collider2DClass);
     if (!IsAlive(collider2D)) {
         return false;
     }
     
-
-    auto getEnabled = BNM::Class("UnityEngine", "Behaviour")
-        .GetMethod("get_enabled", 0)
-        .cast<bool>();
-
+    auto getEnabled = BNM::Class("UnityEngine", "Behaviour").GetMethod("get_enabled", 0).cast<bool>();
     if (!getEnabled.IsValid()) {
         return false;
-    }
-    
+    }    
     
     bool enabled = getEnabled[collider2D]();
     /*
@@ -516,10 +457,7 @@ bool GetComponentEnabled(
         return false;
     }
 
-    auto getEnabled = componentClass
-        .GetMethod("get_enabled", 0)
-        .cast<bool>();
-
+    auto getEnabled = componentClass.GetMethod("get_enabled", 0).cast<bool>();
     if (!getEnabled.IsValid()) {
         return false;
     }
@@ -537,27 +475,15 @@ struct ColliderState {
 ColliderState GetColliderState(Il2CppObject* gameObject) {
     ColliderState state;
 
-    const auto colliderClass =
-        BNM::Class("UnityEngine", "Collider");
-
-    const auto collider2DClass =
-        BNM::Class("UnityEngine", "Collider2D");
-
-    Il2CppObject* collider =
-        GetComponentByClass(gameObject, colliderClass);
-
-    Il2CppObject* collider2D =
-        GetComponentByClass(gameObject, collider2DClass);
+    const auto colliderClass = BNM::Class("UnityEngine", "Collider");
+    const auto collider2DClass = BNM::Class("UnityEngine", "Collider2D");
+    Il2CppObject* collider = GetComponentByClass(gameObject, colliderClass);
+    Il2CppObject* collider2D = GetComponentByClass(gameObject, collider2DClass);
 
     state.hasCollider = IsAlive(collider);
-    state.colliderEnabled =
-        state.hasCollider &&
-        GetComponentEnabled(collider, colliderClass);
-
+    state.colliderEnabled = state.hasCollider && GetComponentEnabled(collider, colliderClass);
     state.hasCollider2D = IsAlive(collider2D);
-    state.collider2DEnabled =
-        state.hasCollider2D &&
-        GetComponentEnabled(collider2D, collider2DClass);
+    state.collider2DEnabled = state.hasCollider2D && GetComponentEnabled(collider2D, collider2DClass);
 
     return state;
 }
@@ -567,15 +493,12 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
         return "[]";
     }
 
-
+    /*
     auto componentClass = BNM::Class("UnityEngine", "Component");
     auto componentType = componentClass.GetMonoType();
 
     // GameObject.GetComponent(Type) で Transform を取得
-    auto transform = GetComponentByClass(
-        gameObject,
-        TransformClass()
-    );
+    auto transform = GetComponentByClass(gameObject, TransformClass());
 
     LOGI(
         "COMPONENT: gameObject=%p transform=%p alive=%d type=%p",
@@ -591,10 +514,7 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
     }
 
     // Component.GetComponents(Type)
-    auto getComponents = componentClass
-        .GetMethod("GetComponents", 1)
-        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
-
+    auto getComponents = componentClass.GetMethod("GetComponents", 1).cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
     LOGI(
         "COMPONENT: GetComponents valid=%d",
         getComponents.IsValid() ? 1 : 0
@@ -605,9 +525,46 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
     }
 
     auto components = getComponents[transform](componentType);
-
     LOGI("COMPONENT: returned array=%p", components);
+    */
+    auto gameObjectClass = GameObjectClass();
+    auto componentClass = BNM::Class("UnityEngine", "Component");
 
+    // GetComponents<T>() を取得（引数0個のジェネリックメソッド）
+    auto genericMethod = gameObjectClass.GetMethod("GetComponents", 0);
+
+    LOGI(
+        "COMPONENT: generic method valid=%d",
+        genericMethod.IsValid() ? 1 : 0
+    );
+
+    if (!genericMethod.IsValid()) {
+        return "[]";
+    }
+
+    // T = Component としてジェネリックメソッドを特殊化
+    auto typedMethod = genericMethod.GetGeneric({
+        componentClass.GetCompileTimeClass()
+    });
+
+    LOGI(
+        "COMPONENT: specialized method valid=%d",
+        typedMethod.IsValid() ? 1 : 0
+    );
+
+    if (!typedMethod.IsValid()) {
+        return "[]";
+    }
+
+    // 戻り値 T[] を Component[] 相当として受け取る
+    auto getComponents = typedMethod.cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    LOGI("COMPONENT: before generic invocation");
+    auto components = getComponents[gameObject]();
+    LOGI(
+        "COMPONENT: after generic invocation array=%p",
+        components
+    );
+    
     if (!components) {
         return "[]";
     }
@@ -619,11 +576,8 @@ std::string GetComponentTypesJson(Il2CppObject* gameObject) {
     }
     */    
 
-    const auto count =
-        static_cast<std::size_t>(components->GetSize());
-
+    const auto count = static_cast<std::size_t>(components->GetSize());
     auto data = components->GetData();
-
     std::string json = "[";
     bool first = true;
 
@@ -672,31 +626,20 @@ bool IsVisible(Il2CppObject* gameObject) {
     auto canvasRendererClass =
         BNM::Class("UnityEngine", "CanvasRenderer");
 
-    Il2CppObject* canvasRenderer =
-        GetComponentByClass(gameObject, canvasRendererClass);
+    Il2CppObject* canvasRenderer = GetComponentByClass(gameObject, canvasRendererClass);
 
     if (IsAlive(canvasRenderer)) {
-        auto getCull = canvasRendererClass
-            .GetMethod("get_cull", 0)
-            .cast<bool>();
-
+        auto getCull = canvasRendererClass.GetMethod("get_cull", 0).cast<bool>();
         if (getCull.IsValid()) {
             return !getCull[canvasRenderer]();
         }
     }
 
     // 通常の Renderer を持つ GameObject にも対応
-    auto rendererClass =
-        BNM::Class("UnityEngine", "Renderer");
-
-    Il2CppObject* renderer =
-        GetComponentByClass(gameObject, rendererClass);
-
+    auto rendererClass = BNM::Class("UnityEngine", "Renderer");
+    Il2CppObject* renderer = GetComponentByClass(gameObject, rendererClass);
     if (IsAlive(renderer)) {
-        auto getEnabled = BNM::Class("UnityEngine", "Renderer")
-            .GetMethod("get_enabled", 0)
-            .cast<bool>();
-
+        auto getEnabled = BNM::Class("UnityEngine", "Renderer").GetMethod("get_enabled", 0).cast<bool>();
         if (getEnabled.IsValid()) {
             return getEnabled[renderer]();
         }
@@ -712,10 +655,7 @@ Il2CppObject* GetTransform(Il2CppObject* gameObject) {
         return nullptr;
     }
 
-    auto method = GameObjectClass()
-        .GetMethod("get_transform", 0)
-        .cast<Il2CppObject*>();
-
+    auto method = GameObjectClass().GetMethod("get_transform", 0).cast<Il2CppObject*>();
     if (!method.IsValid()) {
         return nullptr;
     }
@@ -728,10 +668,7 @@ int GetChildCount(Il2CppObject* transform) {
         return 0;
     }
 
-    auto method = TransformClass()
-        .GetMethod("get_childCount", 0)
-        .cast<int>();
-
+    auto method = TransformClass().GetMethod("get_childCount", 0).cast<int>();
     if (!method.IsValid()) {
         return 0;
     }
@@ -747,26 +684,19 @@ Il2CppObject* GetChildGameObject(
         return nullptr;
     }
 
-    auto getChild = TransformClass()
-        .GetMethod("GetChild", 1)
-        .cast<Il2CppObject*>();
-
+    auto getChild = TransformClass().GetMethod("GetChild", 1).cast<Il2CppObject*>();
     if (!getChild.IsValid()) {
         return nullptr;
     }
 
     Il2CppObject* childTransform = getChild[transform](index);
-
     if (!IsAlive(childTransform)) {
         return nullptr;
     }
 
     // Transform は Component を継承するため、
     // get_gameObject は親クラスから検索できる。
-    auto getGameObject = TransformClass()
-        .GetMethod("get_gameObject", 0)
-        .cast<Il2CppObject*>();
-
+    auto getGameObject = TransformClass().GetMethod("get_gameObject", 0).cast<Il2CppObject*>();
     if (!getGameObject.IsValid()) {
         return nullptr;
     }
@@ -859,9 +789,7 @@ std::string BuildNode(
 
 void LogAllGameObjects() {
     auto objectClass = BNM::Class("UnityEngine", "Object");
-    auto method = objectClass
-        .GetMethod("FindObjectsOfType", 2)
-        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    auto method = objectClass.GetMethod("FindObjectsOfType", 2).cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
 
     if (!method.IsValid()) {
         LOGE("OBJECT_SCAN FindObjectsOfType(Type, bool) unavailable");
@@ -959,9 +887,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     LogClassMethods("SceneManager", SceneManagerClass());
     LogAllGameObjects();
 
-    auto getActiveScene = SceneManagerClass()
-        .GetMethod("GetActiveScene", 0)
-        .cast<SceneValue>();
+    auto getActiveScene = SceneManagerClass().GetMethod("GetActiveScene", 0).cast<SceneValue>();
     LOGI("scene1");    
 
     if (!getActiveScene.IsValid()) {
@@ -974,9 +900,7 @@ std::string DumpGameObjectTree(const char* rootName) {
     SceneValue scene = getActiveScene();
     LOGI("scene2");  
 
-    auto getRoots = SceneClass()
-        .GetMethod("GetRootGameObjects", 0)
-        .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
+    auto getRoots = SceneClass().GetMethod("GetRootGameObjects", 0).cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
     LOGI("scene3");      
 
     if (!getRoots.IsValid()) {
@@ -1064,8 +988,7 @@ std::string DumpClickableObjects() {
 
     auto objectClass = BNM::Class("UnityEngine", "Object");
 
-    auto findObjects = objectClass
-        .GetMethod("FindObjectsOfType", 2)
+    auto findObjects = objectClass.GetMethod("FindObjectsOfType", 2)
         .cast<BNM::Structures::Mono::Array<Il2CppObject*>*>();
 
     if (!findObjects.IsValid()) {
@@ -1081,8 +1004,7 @@ std::string DumpClickableObjects() {
         return "[]";
     }
 
-    const auto count =
-        static_cast<std::size_t>(objects->GetSize());
+    const auto count = static_cast<std::size_t>(objects->GetSize());
     auto data = objects->GetData();
 
     std::string json = "[";
